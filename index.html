@@ -1,17 +1,17 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>OMNISYNC | GITHUB READY</title>
+    <title>OMNISYNC | GITHUB FINAL</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
     <style>
         body { font-family: sans-serif; text-align: center; background: #0a0a0a; color: white; padding-top: 50px; }
         .box { background: #1a1a1a; padding: 30px; border-radius: 15px; border: 1px solid #333; display: inline-block; }
-        video { width: 480px; background: #000; border: 2px solid #00d2ff; border-radius: 10px; margin-top: 20px; }
+        video { width: 480px; height: 360px; background: #000; border: 2px solid #00d2ff; border-radius: 10px; margin-top: 20px; object-fit: cover; }
         input { padding: 12px; border-radius: 5px; border: 1px solid #444; background: #000; color: #fff; width: 220px; }
         button { padding: 12px 25px; cursor: pointer; font-weight: bold; border-radius: 5px; border: none; margin: 5px; }
         .g-btn { background: #ff4b2b; color: white; }
         .t-btn { background: #00d2ff; color: black; }
-        #status { margin-top: 15px; color: #888; font-size: 13px; }
+        #status { margin-top: 15px; color: #00d2ff; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -22,7 +22,7 @@
         <br>
         <button class="g-btn" onclick="initSession('guide')">I AM GUIDE</button>
         <button class="t-btn" onclick="initSession('tourist')">I AM TOURIST</button>
-        <div id="status">STATUS: READY</div>
+        <div id="status">READY</div>
         <br>
         <video id="display-video" autoplay playsinline></video>
     </div>
@@ -38,15 +38,15 @@
             const status = document.getElementById('status');
             const video = document.getElementById('display-video');
 
-            // --- THE GITHUB FIX ---
-            // We use a random suffix to prevent "Tracking Prevention" from blocking the ID
+            // BYPASS: Random ID prevents browser tracking blocks
             const randomID = "USER-" + Math.floor(Math.random() * 99999);
             const guideID = "ROOM-" + room + "-GUIDE";
 
             peer = new Peer(role === 'guide' ? guideID : randomID, {
-                secure: true,   // MUST be true for GitHub
-                port: 443,      // MUST be 443 for GitHub
-                debug: 1
+                secure: true,
+                port: 443,
+                debug: 2,
+                config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }] }
             });
 
             peer.on('open', (id) => {
@@ -56,37 +56,46 @@
             });
 
             peer.on('error', (err) => {
-                if(err.type === 'unavailable-id') alert("Room busy. Use a different code.");
+                console.error(err);
                 status.innerText = "ERROR: " + err.type;
+                if(err.type === 'unavailable-id') alert("Room busy. Change code.");
             });
         }
 
         async function setupGuide() {
             try {
+                // FORCE: Ask for permissions explicitly
                 localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                document.getElementById('display-video').srcObject = localStream;
-                document.getElementById('display-video').muted = true;
+                const v = document.getElementById('display-video');
+                v.srcObject = localStream;
+                v.muted = true; // Guide must be muted to prevent loopback
+                
+                status.innerText = "GUIDE ACTIVE - WAITING FOR TOURIST";
 
                 peer.on('call', (call) => {
-                    console.log("Tourist calling... connecting.");
+                    console.log("Receiving call...");
                     call.answer(localStream);
+                    // No need to handle remote stream for guide
                 });
             } catch (e) {
-                alert("Camera access denied. GitHub requires HTTPS!");
+                alert("Camera Blocked! Click the Lock Icon in the URL bar and hit 'Allow'.");
             }
         }
 
         function setupTourist(target) {
-            document.getElementById('status').innerText = "TAP VIDEO TO START";
+            document.getElementById('status').innerText = "TAP ANYWHERE TO CONNECT";
             
-            // Critical Gesture Guard for Browsers
+            // GESTURE: Browsers won't play video until the user clicks
             window.onclick = () => {
-                const call = peer.call(target, new MediaStream()); // Handshake
+                document.getElementById('status').innerText = "CALLING GUIDE...";
+                // Handshake with an empty stream to wake up the Guide
+                const call = peer.call(target, new MediaStream()); 
+                
                 call.on('stream', (remoteStream) => {
                     const v = document.getElementById('display-video');
                     v.srcObject = remoteStream;
-                    v.play();
-                    document.getElementById('status').innerText = "LIVE";
+                    v.play(); // Explicit play command
+                    document.getElementById('status').innerText = "LIVE CONNECTION STABLISHED";
                 });
             };
         }
