@@ -1,88 +1,132 @@
-App.studio = {
-    peer: null, 
-    localStream: null, 
-    connectionActive: false, // Prevents "Flood" errors in console
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OMNISYNC | VIDEO TEST</title>
     
-    init: function() {
-        // 1. Setup Identity
-        const gId = "OMNI-" + App.state.roomID + "-GUIDE";
-        const myId = App.state.user.role === 'guide' ? gId : undefined;
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { 
+            background: #0a0a0a; color: white; font-family: 'Inter', sans-serif; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0;
+        }
+        #setup { background: #1a1a1a; padding: 30px; border-radius: 12px; border: 1px solid #333; text-align: center; }
+        #video-container { display: none; text-align: center; }
         
-        // 2. Initialize Peer with HTTPS settings for GitHub
-        this.peer = new Peer(myId, {
-            secure: true,
-            port: 443,
-            config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }] }
-        });
+        video { 
+            width: 80vw; max-width: 640px; background: #000; border-radius: 12px; 
+            border: 2px solid #00d2ff; box-shadow: 0 0 20px rgba(0, 210, 255, 0.2); 
+        }
         
-        // 3. Set up listeners based on Role
-        if(App.state.user.role === 'guide') {
-            // Guide waits for calls
-            this.peer.on('call', incomingCall => { 
-                if(this.localStream) {
-                    incomingCall.answer(this.localStream);
-                    this.setupStream(incomingCall);
-                }
+        input { padding: 12px; border-radius: 6px; border: 1px solid #444; background: #000; color: #fff; margin-bottom: 10px; width: 200px; }
+        button { 
+            padding: 12px 24px; border-radius: 30px; border: none; font-weight: bold; 
+            cursor: pointer; text-transform: uppercase; margin: 5px;
+        }
+        .guide-btn { background: #ff4b2b; color: white; }
+        .tourist-btn { background: #00d2ff; color: black; }
+        
+        #status-bar { margin-top: 15px; font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+        .live-indicator { color: #ff4b2b; font-weight: bold; display: none; }
+    </style>
+</head>
+<body>
+
+    <div id="setup">
+        <h2>OMNISYNC VIDEO</h2>
+        <input type="text" id="room-id" placeholder="ROOM CODE (e.g. LOBBY1)">
+        <br>
+        <button class="guide-btn" onclick="initApp('guide')">Start as Guide</button>
+        <button class="tourist-btn" onclick="initApp('tourist')">Join as Tourist</button>
+    </div>
+
+    <div id="video-container">
+        <div id="status-bar">STATUS: <span id="status-text">CONNECTING...</span></div>
+        <br>
+        <video id="main-video" autoplay playsinline></video>
+        <p id="click-notice" style="display:none; color: #00d2ff;">Click anywhere to enable audio/video</p>
+    </div>
+
+    <script>
+        let peer = null;
+        let localStream = null;
+        let isConnected = false;
+
+        function initApp(role) {
+            const room = document.getElementById('room-id').value.trim().toUpperCase();
+            if(!room) return alert("Please enter a Room Code.");
+
+            document.getElementById('setup').style.display = 'none';
+            document.getElementById('video-container').style.display = 'block';
+
+            const guidePeerId = "OMNI-" + room + "-GUIDE";
+            
+            // PeerJS Config for GitHub (Secure HTTPS)
+            peer = new Peer(role === 'guide' ? guidePeerId : undefined, {
+                secure: true,
+                port: 443,
+                debug: 1
             });
-        } else {
-            // Tourist looks for Guide every 5 seconds (Only if NOT connected)
-            setInterval(() => { 
-                if(!this.connectionActive && this.peer && this.peer.open) {
-                    this.connectToGuide();
-                }
-            }, 5000);
-        }
-    },
 
-    toggleCam: function() {
-        const v = document.getElementById('remote-video');
-        if(!this.localStream) {
-            navigator.mediaDevices.getUserMedia({video:true, audio:true}).then(s => {
-                this.localStream = s; 
-                v.srcObject = s; 
-                v.muted = true; // Mute local preview to prevent echo
-                v.play();
+            peer.on('open', (id) => {
+                document.getElementById('status-text').innerText = "ONLINE - ROLE: " + role;
+                if(role === 'guide') startGuideStream();
+                else startTouristHeartbeat(guidePeerId);
+            });
+
+            peer.on('error', (err) => {
+                console.error("PeerJS Error:", err);
+                document.getElementById('status-text').innerText = "ERROR: " + err.type;
+            });
+        }
+
+        // --- GUIDE FUNCTIONS ---
+        async function startGuideStream() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                const v = document.getElementById('main-video');
+                v.srcObject = localStream;
+                v.muted = true; // Guide mutes self to prevent feedback
+
+                // Answer calls from tourists
+                peer.on('call', (call) => {
+                    console.log("Answering Tourist call...");
+                    call.answer(localStream);
+                });
+            } catch (e) {
+                alert("Camera Error: " + e.message);
+            }
+        }
+
+        // --- TOURIST FUNCTIONS ---
+        function startTouristHeartbeat(targetId) {
+            document.getElementById('status-text').innerText = "WAITING FOR GUIDE...";
+            document.getElementById('click-notice').style.display = 'block';
+
+            // Connect on click (Required by modern browsers)
+            window.addEventListener('click', () => {
+                if(isConnected) return;
                 
-                // Update UI state
-                document.getElementById('cam-btn').innerText = "Cam ON"; 
-                document.getElementById('cam-btn').style.background = "red";
-                document.getElementById('live-indicator').innerText = "LIVE"; 
-                document.getElementById('live-indicator').style.background = "red";
-            }).catch(err => alert("Camera Access Denied. Ensure HTTPS is active."));
-        } else {
-            // Cleanup: Stop all camera tracks
-            this.localStream.getTracks().forEach(t => t.stop()); 
-            this.localStream = null;
-            v.srcObject = null; 
-            document.getElementById('cam-btn').innerText = "Cam OFF";
-            document.getElementById('cam-btn').style.background = "#333";
-            document.getElementById('live-indicator').innerText = "OFFLINE";
+                const call = peer.call(targetId, new MediaStream());
+                
+                call.on('stream', (remoteStream) => {
+                    isConnected = true;
+                    document.getElementById('status-text').innerText = "CONNECTED - LIVE";
+                    document.getElementById('click-notice').style.display = 'none';
+                    
+                    const v = document.getElementById('main-video');
+                    v.srcObject = remoteStream;
+                    v.play();
+                });
+
+                call.on('error', () => { isConnected = false; });
+                call.on('close', () => { isConnected = false; });
+            }, { once: false });
         }
-    },
-
-    connectToGuide: function() {
-        const targetId = "OMNI-" + App.state.roomID + "-GUIDE";
-        // Call with an empty stream to initiate the handshake
-        const call = this.peer.call(targetId, new MediaStream());
-        if(call) this.setupStream(call);
-    },
-
-    setupStream: function(call) {
-        call.on('stream', remoteStream => { 
-            this.connectionActive = true;
-            const v = document.getElementById('remote-video');
-            v.srcObject = remoteStream; 
-            v.muted = false;
-            
-            // Interaction Guard: Browser requires a click before playing audio
-            v.play().catch(e => console.log("Click the page to enable video."));
-            
-            document.getElementById('live-indicator').innerText = "GUIDE LIVE";
-            document.getElementById('live-indicator').style.background = "green";
-        });
-
-        // Reset the flag if the connection drops so we can reconnect
-        call.on('close', () => { this.connectionActive = false; });
-        call.on('error', () => { this.connectionActive = false; });
-    }
-};
+    </script>
+</body>
+</html>
