@@ -3,13 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OMNISYNC | SYNC ENGINE</title>
+    <title>OMNISYNC | FINAL STABLE</title>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs&libraries=places"></script>
-    
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     
     <style>
         :root { --accent: #00d2ff; --bg: #0a0a0a; --panel: #1a1a1a; }
@@ -17,225 +16,147 @@
 
         /* GATEKEEPER */
         #gatekeeper { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; align-items: center; justify-content: center; }
-        .gate-card { background: var(--panel); padding: 40px; border-radius: 12px; text-align: center; border: 1px solid #333; width: 320px; box-shadow: 0 20px 50px rgba(0,0,0,0.5); }
+        .gate-card { background: var(--panel); padding: 40px; border-radius: 12px; text-align: center; border: 1px solid #333; width: 320px; }
         input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 6px; border: 1px solid #444; background: #000; color: #fff; box-sizing: border-box; outline: none; }
-        .role-selector { display: flex; gap: 10px; margin: 15px 0; }
-        .role-btn { flex: 1; padding: 10px; border: 1px solid #444; background: #222; color: #888; cursor: pointer; border-radius: 6px; font-size: 11px; font-weight: bold; }
-        .role-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0, 210, 255, 0.1); }
-
+        
         /* APP LAYOUT */
         #app-shell { display: none; height: 100vh; width: 100vw; }
         #view-3d { flex: 1; background: #111; position: relative; height: 100%; }
-        #view-2d { width: 30%; background: var(--panel); position: relative; border-left: 2px solid #000; height: 100%; }
-        #resizer { width: 10px; background: #222; cursor: col-resize; z-index: 100; display: flex; align-items: center; justify-content: center; }
-        #resizer::after { content: "||"; color: #444; font-size: 10px; }
-
-        /* HUD ELEMENTS */
-        .overlay { position: absolute; z-index: 50; pointer-events: none; }
-        .status-pill { top: 20px; left: 20px; background: rgba(0,0,0,0.85); padding: 10px 15px; border-radius: 10px; font-size: 10px; border: 1px solid #333; }
-        #roster-panel { bottom: 20px; left: 20px; width: 180px; background: rgba(0,0,0,0.7); border-radius: 10px; border: 1px solid #333; padding: 10px; pointer-events: auto; }
-        #search-container { top: 20px; right: 20px; width: 300px; pointer-events: auto; display: none; }
-        #pac-input { width: 100%; padding: 12px 15px; border-radius: 8px; border: 1px solid var(--accent); background: #000; color: #fff; font-size: 13px; outline: none; box-shadow: 0 0 20px rgba(0,210,255,0.2); }
+        #view-2d { width: 30%; background: var(--panel); border-left: 2px solid #000; }
         
-        .controls { bottom: 20px; left: 50%; transform: translateX(-50%); pointer-events: auto; }
-        button { background: #fff; color: #000; border: none; padding: 10px 25px; border-radius: 30px; font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 10px; transition: 0.2s; }
-        button#tether-btn.active { background: var(--accent); color: #000; box-shadow: 0 0 15px var(--accent); }
+        /* WEBCAM BOX (The Fix) */
+        #video-container { position: absolute; top: 20px; right: 20px; width: 280px; aspect-ratio: 16/9; background: #000; border-radius: 12px; border: 2px solid var(--accent); overflow: hidden; z-index: 1000; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        #unmute-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 1010; }
+        
+        /* BUTTONS */
+        .controls { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; gap: 10px; }
+        button { background: #fff; color: #000; border: none; padding: 10px 20px; border-radius: 30px; font-weight: bold; cursor: pointer; font-size: 10px; }
+        button.active { background: var(--accent); }
     </style>
 </head>
 <body>
 
     <div id="gatekeeper">
         <div class="gate-card">
-            <h2 style="letter-spacing: 2px;">OMNISYNC</h2>
+            <h2>OMNISYNC</h2>
             <input type="text" id="room-input" placeholder="Room Code">
             <input type="text" id="username-input" placeholder="Your Name">
-            <div class="role-selector">
-                <div class="role-btn active" id="role-tourist" onclick="App.gatekeeper.setRole('tourist')">TOURIST</div>
-                <div class="role-btn" id="role-guide" onclick="App.gatekeeper.setRole('guide')">GUIDE</div>
-            </div>
-            <button onclick="App.gatekeeper.unlock()" style="width:100%; background: var(--accent);">Initialize Sync</button>
+            <p style="font-size: 10px; color: #666;">Select Device Role:</p>
+            <button onclick="launch('guide')" style="background: var(--accent); width: 100%; margin-bottom: 5px;">I am the PHONE (Guide)</button>
+            <button onclick="launch('tourist')" style="background: #333; color: #fff; width: 100%;">I am the PC (Tourist)</button>
         </div>
     </div>
 
     <div id="app-shell">
         <div id="view-3d">
-            <div class="overlay status-pill">
-                <span id="stat-name" style="font-weight: bold; font-size: 12px;">NAME</span><br>
-                <span id="stat-role" style="color: var(--accent); text-transform: uppercase;">ROLE</span>
+            <div id="video-container">
+                <div id="unmute-overlay">
+                    <button onclick="forcePlay()" style="background: var(--accent);">CLICK TO START CAM</button>
+                </div>
+                <video id="cam-view" autoplay playsinline></video>
             </div>
-
-            <div class="overlay" id="roster-panel">
-                <div style="font-size: 9px; color: #666; margin-bottom: 5px; text-transform: uppercase;">In Room</div>
-                <div id="user-list"></div>
-            </div>
-
-            <div class="overlay" id="search-container">
-                <input id="pac-input" type="text" placeholder="Search Location...">
-            </div>
-
-            <div class="overlay controls">
-                <button id="tether-btn" onclick="App.brain.toggleTether()">Tethered</button>
+            
+            <div class="controls">
+                <button id="tether-btn" onclick="toggleTether()">Tethered</button>
             </div>
         </div>
-        
-        <div id="resizer"></div>
         <div id="view-2d"></div>
     </div>
 
     <script>
-        const App = {
-            state: { user: { name: "", id: "U" + Date.now(), role: "tourist" }, roomID: "LOBBY", isTethered: true, isSyncing: false },
-            init: function() { this.ui.initResizer(); this.postOffice.init(); },
+        let peer, localStream, role;
+        const state = { isTethered: true, room: "", name: "" };
+
+        // 1. INITIALIZE APP
+        function launch(selectedRole) {
+            role = selectedRole;
+            state.room = document.getElementById('room-input').value.toUpperCase() || "LOBBY";
+            state.name = document.getElementById('username-input').value || "User";
             
-            gatekeeper: {
-                setRole: function(role) { 
-                    App.state.user.role = role; 
-                    document.getElementById('role-tourist').className = role === 'tourist' ? 'role-btn active' : 'role-btn'; 
-                    document.getElementById('role-guide').className = role === 'guide' ? 'role-btn active' : 'role-btn'; 
-                },
-                unlock: function() {
-                    const n = document.getElementById('username-input').value.trim();
-                    const r = document.getElementById('room-input').value.trim().toUpperCase() || "LOBBY";
-                    if(!n) return alert("Please enter your name");
-                    
-                    App.state.user.name = n; App.state.roomID = r;
-                    document.getElementById('gatekeeper').style.display = 'none';
-                    document.getElementById('app-shell').style.display = 'flex';
-                    document.getElementById('stat-name').innerText = n;
-                    document.getElementById('stat-role').innerText = App.state.user.role;
-                    
-                    if(App.state.user.role === 'guide') {
-                        document.getElementById('tether-btn').style.display = 'none';
-                        document.getElementById('search-container').style.display = 'block';
+            document.getElementById('gatekeeper').style.display = 'none';
+            document.getElementById('app-shell').style.display = 'flex';
+            
+            initMaps();
+            initFirebase();
+            initPeer();
+        }
+
+        // 2. PEERJS LOGIC (THE FIX)
+        function initPeer() {
+            // Use Room Code as the ID for the PC so Phone can find it
+            const myId = (role === 'tourist') ? "OMNI-" + state.room : null;
+            peer = new Peer(myId, { debug: 1 });
+
+            peer.on('open', (id) => {
+                if (role === 'guide') setupGuideCamera();
+            });
+
+            // PC Receiver Logic
+            peer.on('call', (call) => {
+                call.answer();
+                call.on('stream', (remoteStream) => {
+                    const v = document.getElementById('cam-view');
+                    v.srcObject = remoteStream;
+                    document.getElementById('unmute-overlay').style.display = 'flex';
+                });
+            });
+        }
+
+        async function setupGuideCamera() {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            document.getElementById('cam-view').srcObject = localStream;
+            document.getElementById('cam-view').muted = true;
+            
+            // Auto-call the PC
+            const targetId = "OMNI-" + state.room;
+            peer.call(targetId, localStream);
+        }
+
+        function forcePlay() {
+            const v = document.getElementById('cam-view');
+            v.muted = false;
+            v.play();
+            document.getElementById('unmute-overlay').style.display = 'none';
+        }
+
+        // 3. MAPS & FIREBASE SYNC (Existing Logic)
+        let map, panorama, db;
+        function initFirebase() {
+            const config = { apiKey: "AIzaSyBuGMqqCArrL6vKWGRZkgDtn3tvt9wSpoo", databaseURL: "https://virtual-tour-platform-492518-default-rtdb.firebaseio.com" };
+            if (!firebase.apps.length) firebase.initializeApp(config);
+            db = firebase.database();
+            
+            if (role === 'tourist') {
+                db.ref("rooms/" + state.room + "/pos").on("value", s => {
+                    if (s.val() && state.isTethered) {
+                        panorama.setPosition({lat: s.val().lat, lng: s.val().lng});
+                        panorama.setPov({heading: s.val().h, pitch: s.val().p});
                     }
-                    
-                    setTimeout(() => { 
-                        App.eyes.init(); 
-                        App.postOffice.checkIn(); 
-                        App.postOffice.listenForTourists(); 
-                        if(App.state.user.role === 'tourist') App.postOffice.listenForGuide(); 
-                    }, 200);
+                });
+            }
+        }
+
+        function initMaps() {
+            const pos = { lat: 40.758, lng: -73.985 };
+            map = new google.maps.Map(document.getElementById('view-2d'), { center: pos, zoom: 15 });
+            panorama = new google.maps.StreetViewPanorama(document.getElementById('view-3d'), { position: pos });
+            map.setStreetView(panorama);
+
+            panorama.addListener('status_changed', () => {
+                if (role === 'guide') {
+                    const p = panorama.getPosition();
+                    const v = panorama.getPov();
+                    db.ref("rooms/" + state.room + "/pos").set({ lat: p.lat(), lng: p.lng(), h: v.heading, p: v.pitch });
                 }
-            },
+            });
+        }
 
-            brain: {
-                toggleTether: function() {
-                    App.state.isTethered = !App.state.isTethered;
-                    const b = document.getElementById('tether-btn');
-                    b.innerText = App.state.isTethered ? "Tethered" : "Roaming";
-                    b.className = App.state.isTethered ? "" : "active";
-                    if(App.state.isTethered) {
-                        App.postOffice.db.ref("rooms/" + App.state.roomID + "/guide").once("value", (s) => { 
-                            if(s.val()) App.postOffice.applyMove(s.val()); 
-                        });
-                    }
-                }
-            }
-        };
-
-        App.eyes = {
-            map: null, panorama: null, markers: {}, 
-            init: function() {
-                const s = { lat: 40.7580, lng: -73.9855 };
-                this.map = new google.maps.Map(document.getElementById('view-2d'), { 
-                    center: s, zoom: 18, streetViewControl: true, mapTypeControl: false,
-                    styles: [{ "featureType": "all", "stylers": [{ "invert_lightness": true }, { "saturation": -100 }] }]
-                });
-                
-                this.panorama = new google.maps.StreetViewPanorama(document.getElementById('view-3d'), { 
-                    position: s, addressControl: false, pov: { heading: 0, pitch: 0 }
-                });
-                this.map.setStreetView(this.panorama);
-                
-                if(App.state.user.role === 'guide') {
-                    const ac = new google.maps.places.Autocomplete(document.getElementById("pac-input"));
-                    ac.addListener("place_changed", () => { 
-                        const p = ac.getPlace(); 
-                        if(p.geometry){ 
-                            this.panorama.setPosition(p.geometry.location); 
-                            this.map.setCenter(p.geometry.location); 
-                        } 
-                    });
-                }
-
-                const sync = () => {
-                    const p = this.panorama.getPosition(); 
-                    const v = this.panorama.getPov();
-                    if(!App.state.isSyncing && p) {
-                        this.map.setCenter(p);
-                        if(App.state.user.role === 'guide') App.postOffice.transmit(p.lat(), p.lng(), v.heading, v.pitch);
-                        App.postOffice.db.ref("rooms/"+App.state.roomID+"/tourists/"+App.state.user.id).update({
-                            lat:p.lat(), lng:p.lng(), name:App.state.user.name, role:App.state.user.role
-                        });
-                    }
-                };
-                this.panorama.addListener('position_changed', sync); 
-                this.panorama.addListener('pov_changed', sync);
-            }
-        };
-
-        App.postOffice = {
-            db: null,
-            init: function() { 
-                const c = { 
-                    apiKey: "AIzaSyBuGMqqCArrL6vKWGRZkgDtn3tvt9wSpoo", 
-                    databaseURL: "https://virtual-tour-platform-492518-default-rtdb.firebaseio.com" 
-                };
-                if (!firebase.apps.length) firebase.initializeApp(c); 
-                this.db = firebase.database(); 
-            },
-            checkIn: function() { 
-                const r = this.db.ref("rooms/"+App.state.roomID+"/tourists/"+App.state.user.id); 
-                r.onDisconnect().remove(); 
-                r.set({name:App.state.user.name, role:App.state.user.role, lat:40.7580, lng:-73.9855}); 
-            },
-            transmit: function(la, ln, h, pi) { 
-                this.db.ref("rooms/"+App.state.roomID+"/guide").set({lat:la, lng:ln, heading:h, pitch:pi}); 
-            },
-            applyMove: function(d) { 
-                App.state.isSyncing = true; 
-                App.eyes.panorama.setPosition({lat:d.lat, lng:d.lng}); 
-                if(d.heading!==undefined) App.eyes.panorama.setPov({heading:d.heading, pitch:d.pitch||0}); 
-                setTimeout(()=>App.state.isSyncing=false, 500); 
-            },
-            listenForGuide: function() { 
-                this.db.ref("rooms/"+App.state.roomID+"/guide").on("value", s => { 
-                    if(s.val() && App.state.isTethered) this.applyMove(s.val()); 
-                }); 
-            },
-            listenForTourists: function() {
-                this.db.ref("rooms/"+App.state.roomID+"/tourists").on("value", s => {
-                    const us = s.val() || {}; 
-                    const l = document.getElementById('user-list'); 
-                    l.innerHTML = "";
-                    Object.keys(us).forEach(id => {
-                        const u = us[id];
-                        l.innerHTML += `<div style="font-size:12px; margin-bottom:5px;">${u.role==='guide'?'👑':'👤'} ${u.name}</div>`;
-                        if(id !== App.state.user.id) {
-                            if(!App.eyes.markers[id]) App.eyes.markers[id] = new google.maps.Marker({position:{lat:u.lat, lng:u.lng}, map:App.eyes.map, label:u.name});
-                            else App.eyes.markers[id].setPosition({lat:u.lat, lng:u.lng});
-                        }
-                    });
-                });
-            }
-        };
-
-        App.ui = { 
-            initResizer: function() {
-                const r = document.getElementById("resizer"); 
-                const v = document.getElementById("view-2d");
-                r.addEventListener("mousedown", () => { 
-                    const m = (e) => { 
-                        v.style.width = (window.innerWidth - e.clientX) + "px"; 
-                        google.maps.event.trigger(App.eyes.map, "resize"); 
-                    };
-                    window.addEventListener("mousemove", m); 
-                    window.addEventListener("mouseup", () => window.removeEventListener("mousemove", m)); 
-                });
-            }
-        };
-
-        window.onload = () => App.init();
+        function toggleTether() {
+            state.isTethered = !state.isTethered;
+            document.getElementById('tether-btn').innerText = state.isTethered ? "Tethered" : "Roaming";
+            document.getElementById('tether-btn').classList.toggle('active');
+        }
     </script>
 </body>
 </html>
