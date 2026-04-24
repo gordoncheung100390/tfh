@@ -1,103 +1,99 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>OMNISYNC | GITHUB FINAL</title>
+    <title>OMNISYNC | FORCE CONNECT</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #0a0a0a; color: white; padding-top: 50px; }
-        .box { background: #1a1a1a; padding: 30px; border-radius: 15px; border: 1px solid #333; display: inline-block; }
+        body { font-family: sans-serif; text-align: center; background: #050505; color: white; padding-top: 50px; }
+        .box { background: #111; padding: 30px; border-radius: 15px; border: 1px solid #333; display: inline-block; }
         video { width: 480px; height: 360px; background: #000; border: 2px solid #00d2ff; border-radius: 10px; margin-top: 20px; object-fit: cover; }
         input { padding: 12px; border-radius: 5px; border: 1px solid #444; background: #000; color: #fff; width: 220px; }
         button { padding: 12px 25px; cursor: pointer; font-weight: bold; border-radius: 5px; border: none; margin: 5px; }
         .g-btn { background: #ff4b2b; color: white; }
         .t-btn { background: #00d2ff; color: black; }
-        #status { margin-top: 15px; color: #00d2ff; font-weight: bold; }
+        #status { margin-top: 15px; color: #00d2ff; }
     </style>
 </head>
 <body>
 
     <div class="box">
-        <h2>OMNISYNC VIDEO</h2>
+        <h2>OMNISYNC PUNCH-THROUGH</h2>
         <input type="text" id="room-code" placeholder="ENTER ROOM CODE">
         <br>
-        <button class="g-btn" onclick="initSession('guide')">I AM GUIDE</button>
-        <button class="t-btn" onclick="initSession('tourist')">I AM TOURIST</button>
+        <button class="g-btn" onclick="init('guide')">GUIDE</button>
+        <button class="t-btn" onclick="init('tourist')">TOURIST</button>
         <div id="status">READY</div>
         <br>
-        <video id="display-video" autoplay playsinline></video>
+        <video id="vid" autoplay playsinline></video>
     </div>
 
     <script>
         let peer = null;
         let localStream = null;
 
-        async function initSession(role) {
+        async function init(role) {
             const room = document.getElementById('room-code').value.toUpperCase().trim();
-            if(!room) return alert("Enter a Room Code!");
+            if(!room) return alert("Enter Code!");
 
             const status = document.getElementById('status');
-            const video = document.getElementById('display-video');
+            const gID = "ROOM-" + room + "-GUIDE";
 
-            // BYPASS: Random ID prevents browser tracking blocks
-            const randomID = "USER-" + Math.floor(Math.random() * 99999);
-            const guideID = "ROOM-" + room + "-GUIDE";
+            // STUN/TURN configuration to bypass Firewalls
+            const config = {
+                'iceServers': [
+                    { 'urls': 'stun:stun.l.google.com:19302' },
+                    { 'urls': 'stun:stun1.l.google.com:19302' },
+                    { 'urls': 'stun:stun2.l.google.com:19302' }
+                ]
+            };
 
-            peer = new Peer(role === 'guide' ? guideID : randomID, {
+            peer = new Peer(role === 'guide' ? gID : null, {
                 secure: true,
                 port: 443,
-                debug: 2,
-                config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }] }
+                config: config,
+                debug: 2
             });
 
             peer.on('open', (id) => {
-                status.innerText = "ONLINE AS " + role.toUpperCase();
-                if(role === 'guide') setupGuide();
-                else setupTourist(guideID);
+                status.innerText = "ONLINE - " + role.toUpperCase();
+                if(role === 'guide') startGuide();
+                else status.innerText = "READY: CLICK TO CONNECT";
             });
 
-            peer.on('error', (err) => {
-                console.error(err);
-                status.innerText = "ERROR: " + err.type;
-                if(err.type === 'unavailable-id') alert("Room busy. Change code.");
-            });
+            // TOURIST CLICK ACTION
+            window.onclick = () => {
+                if(peer && !peer.destroyed && !localStream) {
+                    status.innerText = "ATTEMPTING HANDSHAKE...";
+                    const call = peer.call(gID, new MediaStream());
+                    
+                    call.on('stream', s => {
+                        status.innerText = "CONNECTED!";
+                        const v = document.getElementById('vid');
+                        v.srcObject = s;
+                        v.play();
+                    });
+
+                    // Error handling for the specific call
+                    setTimeout(() => {
+                        if(status.innerText === "ATTEMPTING HANDSHAKE...") {
+                            status.innerText = "STILL TRYING... (Possible Firewall)";
+                        }
+                    }, 5000);
+                }
+            };
         }
 
-        async function setupGuide() {
+        async function startGuide() {
             try {
-                // FORCE: Ask for permissions explicitly
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                const v = document.getElementById('display-video');
-                v.srcObject = localStream;
-                v.muted = true; // Guide must be muted to prevent loopback
+                localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
+                document.getElementById('vid').srcObject = localStream;
+                document.getElementById('vid').muted = true;
                 
-                status.innerText = "GUIDE ACTIVE - WAITING FOR TOURIST";
-
-                peer.on('call', (call) => {
+                peer.on('call', call => {
                     console.log("Receiving call...");
                     call.answer(localStream);
-                    // No need to handle remote stream for guide
                 });
-            } catch (e) {
-                alert("Camera Blocked! Click the Lock Icon in the URL bar and hit 'Allow'.");
-            }
-        }
-
-        function setupTourist(target) {
-            document.getElementById('status').innerText = "TAP ANYWHERE TO CONNECT";
-            
-            // GESTURE: Browsers won't play video until the user clicks
-            window.onclick = () => {
-                document.getElementById('status').innerText = "CALLING GUIDE...";
-                // Handshake with an empty stream to wake up the Guide
-                const call = peer.call(target, new MediaStream()); 
-                
-                call.on('stream', (remoteStream) => {
-                    const v = document.getElementById('display-video');
-                    v.srcObject = remoteStream;
-                    v.play(); // Explicit play command
-                    document.getElementById('status').innerText = "LIVE CONNECTION STABLISHED";
-                });
-            };
+            } catch(e) { alert("Cam Blocked"); }
         }
     </script>
 </body>
