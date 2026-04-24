@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OMNISYNC | GITHUB DEPLOYMENT</title>
+    <title>OMNISYNC | STABLE STREAM</title>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs&libraries=places&loading=async&v=beta"></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs&libraries=places&loading=async"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
@@ -33,7 +33,7 @@
         .controls { bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; pointer-events: auto; }
         
         #video-feed { top: 20px; right: 20px; width: 240px; height: 135px; background: #000; border-radius: 12px; border: 2px solid #333; overflow: hidden; pointer-events: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.8); z-index: 100; }
-        #video-feed video { width: 100%; height: 100%; object-fit: cover; }
+        #video-feed video { width: 100%; height: 100%; object-fit: cover; background: #000; }
         .live-tag { position: absolute; top: 10px; left: 10px; background: #555; color: white; padding: 2px 6px; border-radius: 4px; font-size: 8px; font-weight: bold; text-transform: uppercase; z-index: 110; }
 
         #roster-panel { top: 180px; left: 20px; width: 180px; background: rgba(0,0,0,0.7); border-radius: 10px; border: 1px solid #333; padding: 10px; pointer-events: auto; }
@@ -138,6 +138,11 @@
                     const b = document.getElementById('tether-btn');
                     b.innerText = App.state.isTethered ? "Tethered" : "Roaming";
                     b.className = App.state.isTethered ? "" : "active";
+                    if(App.state.isTethered) {
+                        App.postOffice.db.ref("rooms/" + App.state.roomID + "/guide").once("value", (s) => { 
+                            if(s.val()) App.postOffice.applyMove(s.val()); 
+                        });
+                    }
                 }
             }
         };
@@ -145,30 +150,31 @@
         App.studio = {
             peer: null, 
             localStream: null, 
-            currentCall: null,
+            currentCall: null, // GUARD: Prevents the re-connection flood
             
             init: function() {
                 const gId = "OMNI-" + App.state.roomID + "-GUIDE";
                 
-                // HARDENED CONFIG: Bypass storage block + HTTPS support
                 this.peer = new Peer(App.state.user.role === 'guide' ? gId : undefined, {
-                    secure: true,
-                    port: 443,
-                    debug: 1,
+                    debug: 1, // Reduced to 1 to clean up the logs
                     config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }] }
                 });
                 
                 if(App.state.user.role === 'guide') {
                     this.peer.on('call', c => { 
+                        console.log("Guide: Received incoming call. Answering...");
+                        // Only answer if guide has their camera on
                         if(this.localStream) {
                             c.answer(this.localStream); 
                         }
                     });
                 } else {
-                    // One-Call Guard: Only heartbeat if not connected
+                    // Tourist heartbeat: only attempt if not currently in a call
                     setInterval(() => { 
-                        if(!this.currentCall && this.peer.open) this.connectToGuide(); 
-                    }, 5000);
+                        if(!this.currentCall) {
+                            this.connectToGuide(); 
+                        }
+                    }, 4000);
                 }
             },
 
@@ -184,7 +190,7 @@
                         document.getElementById('cam-btn').style.background = "red";
                         document.getElementById('live-indicator').innerText = "LIVE"; 
                         document.getElementById('live-indicator').style.background = "red";
-                    }).catch(err => alert("Cam Denied. Check HTTPS settings."));
+                    }).catch(err => alert("Camera Access Denied."));
                 } else {
                     this.localStream.getTracks().forEach(t => t.stop()); 
                     this.localStream = null;
@@ -196,21 +202,29 @@
             },
 
             connectToGuide: function() {
-                const tId = "OMNI-" + App.state.roomID + "-GUIDE";
-                const call = this.peer.call(tId, new MediaStream());
+                const targetId = "OMNI-" + App.state.roomID + "-GUIDE";
+                // Handshake with an empty stream
+                const call = this.peer.call(targetId, new MediaStream());
+                
                 if(!call) return;
 
                 call.on('stream', s => { 
+                    console.log("Tourist: Stream received!");
                     const v = document.getElementById('remote-video');
                     if(v.srcObject !== s) {
                         v.srcObject = s; 
                         v.muted = false;
-                        this.currentCall = call;
-                        v.play().catch(e => console.log("Click to play"));
+                        this.currentCall = call; // LOCK THE CONNECTION
+                        
+                        v.play().catch(e => {
+                            console.log("Auto-play blocked. User must click.");
+                        });
+                        
                         document.getElementById('live-indicator').innerText = "GUIDE LIVE";
                         document.getElementById('live-indicator').style.background = "green";
                     }
                 });
+
                 call.on('close', () => { this.currentCall = null; });
                 call.on('error', () => { this.currentCall = null; });
             }
@@ -220,21 +234,29 @@
             map: null, panorama: null, markers: {}, 
             init: function() {
                 const startPos = { lat: 40.7580, lng: -73.9855 };
-                // MapId is required for Advanced Markers
+                // Using standard Marker for now to avoid the complexity of Advanced Markers in this fix
                 this.map = new google.maps.Map(document.getElementById('view-2d'), { 
-                    center: startPos, zoom: 18, streetViewControl: true, mapId: "DEMO_MAP_ID"
+                    center: startPos, 
+                    zoom: 18, 
+                    streetViewControl: true, 
+                    mapTypeControl: false
                 });
                 
                 this.panorama = new google.maps.StreetViewPanorama(document.getElementById('view-3d'), { 
-                    position: startPos, addressControl: false 
+                    position: startPos, 
+                    addressControl: false 
                 });
+                
                 this.map.setStreetView(this.panorama);
                 
                 if(App.state.user.role === 'guide') {
                     const ac = new google.maps.places.Autocomplete(document.getElementById("pac-input"));
                     ac.addListener("place_changed", () => { 
                         const p = ac.getPlace(); 
-                        if(p.geometry){ this.panorama.setPosition(p.geometry.location); } 
+                        if(p.geometry){ 
+                            this.panorama.setPosition(p.geometry.location); 
+                            this.map.setCenter(p.geometry.location); 
+                        } 
                     });
                 }
                 
@@ -242,6 +264,7 @@
                     const p = this.panorama.getPosition(); 
                     const v = this.panorama.getPov();
                     if(!App.state.isSyncing && p) {
+                        this.map.setCenter(p);
                         if(App.state.user.role === 'guide') {
                             App.postOffice.transmit(p.lat(), p.lng(), v.heading, v.pitch);
                         }
@@ -250,6 +273,7 @@
                         });
                     }
                 };
+                
                 this.panorama.addListener('position_changed', sync); 
                 this.panorama.addListener('pov_changed', sync);
             }
@@ -287,17 +311,22 @@
             listenForTourists: function() {
                 this.db.ref("rooms/"+App.state.roomID+"/tourists").on("value", s => {
                     const users = s.val() || {}; 
-                    const list = document.getElementById('user-list'); list.innerHTML = "";
+                    const list = document.getElementById('user-list'); 
+                    list.innerHTML = "";
+                    
                     Object.keys(users).forEach(id => {
                         const u = users[id];
                         list.innerHTML += `<div style="font-size:11px; margin-bottom:5px;">${u.role==='guide'?'👑':'👤'} ${u.name}</div>`;
+                        
                         if(id !== App.state.user.id) {
                             if(!App.eyes.markers[id]) {
-                                App.eyes.markers[id] = new google.maps.marker.AdvancedMarkerElement({
-                                    position:{lat:u.lat, lng:u.lng}, map:App.eyes.map, title:u.name
+                                App.eyes.markers[id] = new google.maps.Marker({
+                                    position:{lat:u.lat, lng:u.lng}, 
+                                    map:App.eyes.map, 
+                                    label:u.name
                                 });
                             } else {
-                                App.eyes.markers[id].position = {lat:u.lat, lng:u.lng};
+                                App.eyes.markers[id].setPosition({lat:u.lat, lng:u.lng});
                             }
                         }
                     });
@@ -307,7 +336,8 @@
 
         App.ui = { 
             initResizer: function() {
-                const r = document.getElementById("resizer"); const v = document.getElementById("view-2d");
+                const r = document.getElementById("resizer"); 
+                const v = document.getElementById("view-2d");
                 r.addEventListener("mousedown", () => { 
                     const move = (e) => { 
                         v.style.width = (window.innerWidth - e.clientX) + "px"; 
