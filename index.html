@@ -1,196 +1,130 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OMNISYNC | MODULAR ENGINE</title>
-    
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs&libraries=places"></script>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-    
-    <style>
-        :root { --accent: #00d2ff; --bg: #0a0a0a; --panel: #1a1a1a; }
-        body, html { margin: 0; padding: 0; height: 100%; background: var(--bg); color: white; font-family: sans-serif; overflow: hidden; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OMNISYNC</title>
 
-        /* MODULE: GATEKEEPER UI */
-        #gatekeeper { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; align-items: center; justify-content: center; }
-        .gate-card { background: var(--panel); padding: 40px; border-radius: 12px; text-align: center; border: 1px solid #333; width: 320px; }
-        input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 6px; border: 1px solid #444; background: #000; color: #fff; box-sizing: border-box; outline: none; }
-        
-        /* MODULE: APP SHELL */
-        #app-shell { display: none; height: 100vh; width: 100vw; }
-        #view-3d { flex: 1; background: #111; position: relative; height: 100%; }
-        #view-2d { width: 30%; background: var(--panel); border-left: 2px solid #000; }
-        
-        /* MODULE: MEDIA UI */
-        #video-container { position: absolute; top: 20px; right: 20px; width: 280px; aspect-ratio: 16/9; background: #000; border-radius: 12px; border: 2px solid var(--accent); overflow: hidden; z-index: 1000; }
-        video { width: 100%; height: 100%; object-fit: cover; }
-        #unmute-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.95); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 1010; }
-        
-        /* MODULE: CONTROL UI */
-        .controls { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); z-index: 100; }
-        button { background: var(--accent); color: #000; border: none; padding: 12px 25px; border-radius: 30px; font-weight: bold; cursor: pointer; text-transform: uppercase; font-size: 11px; }
-        button.roaming { background: #444; color: #fff; }
-    </style>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+<script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs&libraries=places"></script>
+
+<style>
+body,html{margin:0;height:100%;background:#0a0a0a;color:#fff;font-family:sans-serif}
+#gatekeeper{position:fixed;inset:0;display:flex;align-items:center;justify-content:center}
+input{width:100%;padding:10px;margin:5px 0;background:#000;color:#fff;border:1px solid #333}
+button{padding:10px 20px;border:none;background:#00d2ff;color:#000;cursor:pointer}
+#app{display:none;height:100vh}
+#view3d{flex:1}
+#view2d{width:30%}
+</style>
 </head>
+
 <body>
 
-    <div id="gatekeeper">
-        <div class="gate-card">
-            <h2 style="letter-spacing:2px">OMNISYNC</h2>
-            <input type="text" id="room-input" placeholder="ROOM CODE">
-            <input type="text" id="username-input" placeholder="YOUR NAME">
-            <button onclick="App.launch('guide')" style="width:100%; margin-top:10px">GUIDE (PHONE)</button>
-            <button onclick="App.launch('tourist')" style="width:100%; margin-top:10px; background:#333; color:white">TOURIST (PC)</button>
-        </div>
-    </div>
+<div id="gatekeeper">
+<div>
+<h2>OMNISYNC</h2>
+<input id="name" placeholder="Name">
+<input id="room" placeholder="Room">
+<button id="start">Start</button>
+</div>
+</div>
 
-    <div id="app-shell">
-        <div id="view-3d">
-            <div id="video-container">
-                <div id="unmute-overlay">
-                    <button onclick="MediaModule.forcePlay()">RECEIVE LIVE FEED</button>
-                </div>
-                <video id="cam-view" autoplay playsinline></video>
-            </div>
-            <div class="controls">
-                <button id="tether-btn" onclick="SyncModule.toggleTether()">Tethered</button>
-            </div>
-        </div>
-        <div id="view-2d"></div>
-    </div>
+<div id="app">
+<div id="view3d"></div>
+<div id="view2d"></div>
+</div>
 
-    <script>
-        /**
-         * BLOCK 1: MASTER CONTROLLER
-         * Manages app state and triggers modules.
-         */
-        const App = {
-            state: { role: '', room: '', name: '' },
-            launch: function(role) {
-                this.state.role = role;
-                this.state.room = document.getElementById('room-input').value.toUpperCase() || "LOBBY";
-                this.state.name = document.getElementById('username-input').value || "User";
-                
-                document.getElementById('gatekeeper').style.display = 'none';
-                document.getElementById('app-shell').style.display = 'flex';
-                
-                VisionModule.init();
-                SyncModule.init();
-                MediaModule.init();
-            }
-        };
+<script>
+const EventBus={
+events:{},
+on(e,h){(this.events[e]||(this.events[e]=[])).push(h)},
+emit(e,d){(this.events[e]||[]).forEach(h=>h(d))}
+};
 
-        /**
-         * BLOCK 2: MEDIA MODULE (PEERJS)
-         * Isolated logic for the webcam/audio bridge.
-         */
-        const MediaModule = {
-            peer: null,
-            init: function() {
-                const isTourist = App.state.role === 'tourist';
-                const myId = isTourist ? "OMNI-" + App.state.room : null;
-                
-                this.peer = new Peer(myId, {
-                    config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }] }
-                });
+const State={
+user:{id:"U"+Date.now(),name:"",role:"tourist"},
+room:"LOBBY",
+tether:true,
+sync:false
+};
 
-                this.peer.on('open', (id) => {
-                    if (App.state.role === 'guide') this.startBroadcast();
-                });
+const MapModule={
+map:null,panorama:null,
+init(){
+const s={lat:40.758,lng:-73.985};
 
-                this.peer.on('call', (call) => {
-                    call.answer(); // Auto-answer for the bridge
-                    call.on('stream', (stream) => {
-                        const v = document.getElementById('cam-view');
-                        v.srcObject = stream;
-                        document.getElementById('unmute-overlay').style.display = 'flex';
-                    });
-                });
-            },
-            startBroadcast: async function() {
-                try {
-                    const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                    document.getElementById('cam-view').srcObject = stream;
-                    document.getElementById('cam-view').muted = true;
-                    // Automatically call the Tourist ID
-                    this.peer.call("OMNI-" + App.state.room, stream);
-                } catch (e) { alert("Camera Access Denied"); }
-            },
-            forcePlay: function() {
-                const v = document.getElementById('cam-view');
-                v.muted = false;
-                v.play();
-                document.getElementById('unmute-overlay').style.display = 'none';
-            }
-        };
+this.map=new google.maps.Map(view2d,{center:s,zoom:18});
+this.panorama=new google.maps.StreetViewPanorama(view3d,{position:s});
+this.map.setStreetView(this.panorama);
 
-        /**
-         * BLOCK 3: SYNC MODULE (FIREBASE)
-         * Isolated logic for the data handshake.
-         */
-        const SyncModule = {
-            db: null,
-            isTethered: true,
-            init: function() {
-                const config = { 
-                    apiKey: "AIzaSyBuGMqqCArrL6vKWGRZkgDtn3tvt9wSpoo", 
-                    databaseURL: "https://virtual-tour-platform-492518-default-rtdb.firebaseio.com" 
-                };
-                if (!firebase.apps.length) firebase.initializeApp(config);
-                this.db = firebase.database();
-                if (App.state.role === 'tourist') this.listen();
-            },
-            transmit: function(pos) {
-                this.db.ref("rooms/" + App.state.room + "/pos").set(pos);
-            },
-            listen: function() {
-                this.db.ref("rooms/" + App.state.room + "/pos").on("value", s => {
-                    if (s.val() && this.isTethered) VisionModule.move(s.val());
-                });
-            },
-            toggleTether: function() {
-                this.isTethered = !this.isTethered;
-                const btn = document.getElementById('tether-btn');
-                btn.innerText = this.isTethered ? "TETHERED" : "ROAMING";
-                btn.className = this.isTethered ? "" : "roaming";
-            }
-        };
+let t=0;
+const sync=()=>{
+if(Date.now()-t<100)return;t=Date.now();
+const p=this.panorama.getPosition();
+const v=this.panorama.getPov();
+if(!State.sync){
+EventBus.emit("move",{lat:p.lat(),lng:p.lng(),h:v.heading,p:v.pitch});
+}
+};
 
-        /**
-         * BLOCK 4: VISION MODULE (GOOGLE MAPS)
-         * Isolated logic for the 3D/2D rendering.
-         */
-        const VisionModule = {
-            map: null,
-            panorama: null,
-            init: function() {
-                const startPos = { lat: 40.758, lng: -73.985 };
-                this.map = new google.maps.Map(document.getElementById('view-2d'), { 
-                    center: startPos, zoom: 15, disableDefaultUI: true 
-                });
-                this.panorama = new google.maps.StreetViewPanorama(document.getElementById('view-3d'), { 
-                    position: startPos, addressControl: false 
-                });
-                this.map.setStreetView(this.panorama);
+this.panorama.addListener("position_changed",sync);
+this.panorama.addListener("pov_changed",sync);
 
-                this.panorama.addListener('position_changed', () => this.report());
-                this.panorama.addListener('pov_changed', () => this.report());
-            },
-            report: function() {
-                if (App.state.role === 'guide') {
-                    const p = this.panorama.getPosition();
-                    const v = this.panorama.getPov();
-                    SyncModule.transmit({ lat: p.lat(), lng: p.lng(), h: v.heading, p: v.pitch });
-                }
-            },
-            move: function(data) {
-                this.panorama.setPosition({ lat: data.lat, lng: data.lng });
-                this.panorama.setPov({ heading: data.h, pitch: data.p });
-            }
-        };
-    </script>
+EventBus.on("guide",d=>{
+if(State.tether&&d){
+State.sync=true;
+this.panorama.setPosition({lat:d.lat,lng:d.lng});
+this.panorama.setPov({heading:d.h,pitch:d.p||0});
+setTimeout(()=>State.sync=false,300);
+}
+});
+}
+};
+
+const SyncModule={
+db:null,
+init(){
+firebase.initializeApp({
+apiKey:"AIzaSyBuGMqqCArrL6vKWGRZkgDtn3tvt9wSpoo",
+databaseURL:"https://virtual-tour-platform-492518-default-rtdb.firebaseio.com"
+});
+this.db=firebase.database();
+
+EventBus.on("move",d=>{
+const base="rooms/"+State.room;
+
+this.db.ref(base+"/tourists/"+State.user.id).set({
+name:State.user.name,lat:d.lat,lng:d.lng
+});
+
+if(State.user.role==="guide"){
+this.db.ref(base+"/guide").set(d);
+}
+});
+},
+start(){
+const base="rooms/"+State.room;
+
+this.db.ref(base+"/guide").on("value",s=>{
+EventBus.emit("guide",s.val());
+});
+}
+};
+
+document.getElementById("start").onclick=()=>{
+State.user.name=name.value;
+State.room=room.value||"LOBBY";
+
+gatekeeper.style.display="none";
+app.style.display="flex";
+
+MapModule.init();
+SyncModule.init();
+SyncModule.start();
+};
+</script>
+
 </body>
 </html>
