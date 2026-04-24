@@ -3,96 +3,79 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>P2P Cam Stream - Pro</title>
+    <title>Mobile Broadcast to PC</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; align-items: center; background: #0f0f0f; color: #e0e0e0; margin: 0; padding: 20px; }
-        h2 { color: #00d4ff; margin-bottom: 10px; }
-        #my-id { background: #252525; padding: 10px 15px; border-radius: 5px; border-left: 4px solid #00d4ff; margin-bottom: 20px; font-family: monospace; cursor: pointer; }
-        video { width: 100%; max-width: 640px; border-radius: 12px; background: #000; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        .controls { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 400px; margin-bottom: 20px; }
-        input { padding: 12px; border-radius: 6px; border: 1px solid #444; background: #1a1a1a; color: white; outline: none; }
-        .btn-group { display: flex; gap: 10px; }
-        button { flex: 1; padding: 12px; border-radius: 6px; border: none; background: #007bff; color: white; font-weight: bold; cursor: pointer; transition: 0.2s; }
-        button:hover { background: #0056b3; }
-        .flip-btn { background: #28a745; }
-        #local-video { width: 120px; position: fixed; bottom: 20px; right: 20px; border: 2px solid #00d4ff; z-index: 10; }
+        body { font-family: sans-serif; background: #000; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; overflow: hidden; }
+        #video-container { position: relative; width: 100%; height: 80vh; display: flex; justify-content: center; }
+        video { height: 100%; width: auto; border-radius: 15px; background: #222; }
+        .ui-layer { position: absolute; bottom: 20px; width: 90%; max-width: 400px; background: rgba(0,0,0,0.7); padding: 15px; border-radius: 12px; text-align: center; }
+        #my-id { font-size: 0.8em; color: #00d4ff; margin-bottom: 10px; word-break: break-all; }
+        input { width: 80%; padding: 10px; margin-bottom: 10px; border-radius: 5px; border: none; }
+        button { padding: 10px 20px; border-radius: 5px; border: none; background: #007bff; color: white; font-weight: bold; cursor: pointer; }
+        .status-dot { height: 10px; width: 10px; background-color: #bbb; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        .online { background-color: #00ff00; }
     </style>
 </head>
 <body>
 
-    <h2>Remote Stream</h2>
-    
-    <div id="my-id">Loading ID...</div>
-
-    <div class="controls">
-        <input type="text" id="remote-id" placeholder="Enter Laptop ID">
-        <div class="btn-group">
-            <button onclick="connectToPeer()">Connect</button>
-            <button class="flip-btn" onclick="toggleCamera()">Flip Cam</button>
-        </div>
+    <div id="video-container">
+        <video id="main-video" autoplay playsinline></video>
     </div>
 
-    <video id="remote-video" autoplay playsinline></video>
-    <video id="local-video" autoplay playsinline muted></video>
+    <div class="ui-layer">
+        <div id="my-id">Generating ID...</div>
+        <div id="status"><span class="status-dot"></span> Waiting for connection...</div>
+        <br>
+        <input type="text" id="target-id" placeholder="Paste PC ID here on Mobile">
+        <button onclick="startBroadcast()">Go Live to PC</button>
+    </div>
 
     <script>
-        let currentFacingMode = 'user'; 
+        const mainVideo = document.getElementById('main-video');
         let localStream;
-        
-        // Peer config with Google's STUN servers for cross-network stability
+
+        // Setup Peer with Google STUN servers
         const peer = new Peer({
-            config: {
-                'iceServers': [
-                    { url: 'stun:stun1.l.google.com:19302' },
-                    { url: 'stun:stun2.l.google.com:19302' }
-                ]
-            }
+            config: { 'iceServers': [{ url: 'stun:stun1.l.google.com:19302' }, { url: 'stun:stun2.l.google.com:19302' }] }
         });
 
-        async function startCamera(facingMode = 'user') {
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-            }
+        // 1. Initialize Camera and Mic
+        async function init() {
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: facingMode }, 
-                    audio: true 
-                });
-                document.getElementById('local-video').srcObject = localStream;
-            } catch (err) {
-                console.error("Camera access denied:", err);
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                // On mobile, show your own face immediately
+                mainVideo.srcObject = localStream;
+                mainVideo.muted = true; // Mute locally so you don't hear yourself
+            } catch (e) {
+                alert("Please allow camera/mic access!");
             }
-        }
-
-        function toggleCamera() {
-            currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
-            startCamera(currentFacingMode);
         }
 
         peer.on('open', (id) => {
-            document.getElementById('my-id').innerText = "Your ID: " + id;
+            document.getElementById('my-id').innerText = "ID: " + id;
         });
 
+        // 2. PC side: Listen for the incoming mobile stream
         peer.on('call', (call) => {
-            call.answer(localStream);
+            document.getElementById('status').innerHTML = '<span class="status-dot online"></span> RECEIVING LIVE FEED';
+            call.answer(); // PC doesn't need to send its own camera back
             call.on('stream', (remoteStream) => {
-                document.getElementById('remote-video').srcObject = remoteStream;
+                mainVideo.srcObject = remoteStream;
+                mainVideo.muted = false; // PC plays the audio
             });
         });
 
-        function connectToPeer() {
-            const remoteId = document.getElementById('remote-id').value;
-            if (!remoteId) return alert("Enter an ID first!");
+        // 3. Mobile side: Call the PC
+        function startBroadcast() {
+            const pcId = document.getElementById('target-id').value;
+            if (!pcId) return alert("Enter the PC's ID");
 
-            const call = peer.call(remoteId, localStream);
-            call.on('stream', (remoteStream) => {
-                document.getElementById('remote-video').srcObject = remoteStream;
-            });
+            const call = peer.call(pcId, localStream);
+            document.getElementById('status').innerHTML = '<span class="status-dot online"></span> BROADCASTING LIVE';
         }
 
-        // Initialize camera on load
-        startCamera();
+        init();
     </script>
 </body>
 </html>
