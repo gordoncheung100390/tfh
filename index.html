@@ -3,129 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OMNISYNC | VIDEO TEST</title>
+    <title>OMNISYNC | CAM BYPASS</title>
     
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
     
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&display=swap" rel="stylesheet">
-    
     <style>
         body { 
-            background: #0a0a0a; color: white; font-family: 'Inter', sans-serif; 
-            display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0;
+            background: #050505; color: #fff; font-family: sans-serif; 
+            display: flex; flex-direction: column; align-items: center; justify-content: center; 
+            height: 100vh; margin: 0; 
         }
-        #setup { background: #1a1a1a; padding: 30px; border-radius: 12px; border: 1px solid #333; text-align: center; }
-        #video-container { display: none; text-align: center; }
-        
+        #ui-layer { background: #111; padding: 30px; border-radius: 15px; border: 1px solid #222; text-align: center; }
         video { 
-            width: 80vw; max-width: 640px; background: #000; border-radius: 12px; 
-            border: 2px solid #00d2ff; box-shadow: 0 0 20px rgba(0, 210, 255, 0.2); 
+            width: 90vw; max-width: 600px; border-radius: 10px; border: 2px solid #00d2ff; 
+            background: #000; display: none; margin-top: 20px;
         }
-        
-        input { padding: 12px; border-radius: 6px; border: 1px solid #444; background: #000; color: #fff; margin-bottom: 10px; width: 200px; }
-        button { 
-            padding: 12px 24px; border-radius: 30px; border: none; font-weight: bold; 
-            cursor: pointer; text-transform: uppercase; margin: 5px;
-        }
-        .guide-btn { background: #ff4b2b; color: white; }
-        .tourist-btn { background: #00d2ff; color: black; }
-        
-        #status-bar { margin-top: 15px; font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
-        .live-indicator { color: #ff4b2b; font-weight: bold; display: none; }
+        input { padding: 12px; border-radius: 5px; border: 1px solid #333; background: #000; color: #fff; width: 200px; margin-bottom: 10px; }
+        button { padding: 12px 20px; border-radius: 5px; border: none; font-weight: bold; cursor: pointer; margin: 5px; }
+        .guide-btn { background: #ff4b2b; color: #fff; }
+        .tourist-btn { background: #00d2ff; color: #000; }
+        #status { margin-top: 15px; font-size: 12px; color: #00d2ff; }
     </style>
 </head>
 <body>
 
-    <div id="setup">
-        <h2>OMNISYNC VIDEO</h2>
-        <input type="text" id="room-id" placeholder="ROOM CODE (e.g. LOBBY1)">
+    <div id="ui-layer">
+        <h2>OMNISYNC CAM</h2>
+        <input type="text" id="room-id" placeholder="ROOM CODE (e.g. TEST1)">
         <br>
-        <button class="guide-btn" onclick="initApp('guide')">Start as Guide</button>
-        <button class="tourist-btn" onclick="initApp('tourist')">Join as Tourist</button>
+        <button class="guide-btn" onclick="start('guide')">GUIDE (Start Cam)</button>
+        <button class="tourist-btn" onclick="start('tourist')">TOURIST (Join)</button>
+        <div id="status">READY</div>
     </div>
 
-    <div id="video-container">
-        <div id="status-bar">STATUS: <span id="status-text">CONNECTING...</span></div>
-        <br>
-        <video id="main-video" autoplay playsinline></video>
-        <p id="click-notice" style="display:none; color: #00d2ff;">Click anywhere to enable audio/video</p>
-    </div>
+    <video id="vid" autoplay playsinline></video>
 
     <script>
         let peer = null;
-        let localStream = null;
-        let isConnected = false;
+        let stream = null;
 
-        function initApp(role) {
+        async function start(role) {
             const room = document.getElementById('room-id').value.trim().toUpperCase();
-            if(!room) return alert("Please enter a Room Code.");
+            if(!room) return alert("Enter Room Code");
 
-            document.getElementById('setup').style.display = 'none';
-            document.getElementById('video-container').style.display = 'block';
-
-            const guidePeerId = "OMNI-" + room + "-GUIDE";
+            const status = document.getElementById('status');
+            const video = document.getElementById('vid');
             
-            // PeerJS Config for GitHub (Secure HTTPS)
-            peer = new Peer(role === 'guide' ? guidePeerId : undefined, {
+            // Generate a random ID for the session to bypass the "Tracking Prevention" storage block
+            const randomID = "USER-" + Math.floor(Math.random() * 10000);
+            const guideID = "OMNI-" + room + "-GUIDE";
+
+            // Initialize Peer with explicit secure settings for GitHub
+            peer = new Peer(role === 'guide' ? guideID : randomID, {
                 secure: true,
                 port: 443,
-                debug: 1
+                debug: 3 // High debug to see if storage is blocked in console
             });
 
-            peer.on('open', (id) => {
-                document.getElementById('status-text').innerText = "ONLINE - ROLE: " + role;
-                if(role === 'guide') startGuideStream();
-                else startTouristHeartbeat(guidePeerId);
+            peer.on('open', id => {
+                status.innerText = "CONNECTED AS " + role.toUpperCase();
+                document.getElementById('ui-layer').style.display = 'none';
+                video.style.display = 'block';
+
+                if(role === 'guide') {
+                    setupGuide();
+                } else {
+                    setupTourist(guideID);
+                }
             });
 
-            peer.on('error', (err) => {
-                console.error("PeerJS Error:", err);
-                document.getElementById('status-text').innerText = "ERROR: " + err.type;
+            peer.on('error', err => {
+                console.error(err);
+                status.innerText = "ERROR: " + err.type;
+                if(err.type === 'unavailable-id') alert("Guide ID busy. Wait 30s or use new code.");
             });
         }
 
-        // --- GUIDE FUNCTIONS ---
-        async function startGuideStream() {
+        async function setupGuide() {
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                const v = document.getElementById('main-video');
-                v.srcObject = localStream;
-                v.muted = true; // Guide mutes self to prevent feedback
+                stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('vid').srcObject = stream;
+                document.getElementById('vid').muted = true;
 
-                // Answer calls from tourists
-                peer.on('call', (call) => {
-                    console.log("Answering Tourist call...");
-                    call.answer(localStream);
+                peer.on('call', call => {
+                    console.log("Tourist calling... answering.");
+                    call.answer(stream);
                 });
             } catch (e) {
-                alert("Camera Error: " + e.message);
+                alert("Camera Error. Please check HTTPS and permissions.");
             }
         }
 
-        // --- TOURIST FUNCTIONS ---
-        function startTouristHeartbeat(targetId) {
-            document.getElementById('status-text').innerText = "WAITING FOR GUIDE...";
-            document.getElementById('click-notice').style.display = 'block';
-
-            // Connect on click (Required by modern browsers)
-            window.addEventListener('click', () => {
-                if(isConnected) return;
+        function setupTourist(target) {
+            document.getElementById('status').innerText = "CLICK SCREEN TO START VIDEO";
+            
+            // This listener is CRITICAL. Browsers block video until a click happens.
+            window.onclick = () => {
+                const call = peer.call(target, new MediaStream());
                 
-                const call = peer.call(targetId, new MediaStream());
-                
-                call.on('stream', (remoteStream) => {
-                    isConnected = true;
-                    document.getElementById('status-text').innerText = "CONNECTED - LIVE";
-                    document.getElementById('click-notice').style.display = 'none';
-                    
-                    const v = document.getElementById('main-video');
+                call.on('stream', remoteStream => {
+                    const v = document.getElementById('vid');
                     v.srcObject = remoteStream;
                     v.play();
                 });
-
-                call.on('error', () => { isConnected = false; });
-                call.on('close', () => { isConnected = false; });
-            }, { once: false });
+            };
         }
     </script>
 </body>
