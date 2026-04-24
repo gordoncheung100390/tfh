@@ -1,99 +1,68 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>OMNISYNC | FORCE CONNECT</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>P2P Cam Stream</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #050505; color: white; padding-top: 50px; }
-        .box { background: #111; padding: 30px; border-radius: 15px; border: 1px solid #333; display: inline-block; }
-        video { width: 480px; height: 360px; background: #000; border: 2px solid #00d2ff; border-radius: 10px; margin-top: 20px; object-fit: cover; }
-        input { padding: 12px; border-radius: 5px; border: 1px solid #444; background: #000; color: #fff; width: 220px; }
-        button { padding: 12px 25px; cursor: pointer; font-weight: bold; border-radius: 5px; border: none; margin: 5px; }
-        .g-btn { background: #ff4b2b; color: white; }
-        .t-btn { background: #00d2ff; color: black; }
-        #status { margin-top: 15px; color: #00d2ff; }
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background: #121212; color: white; }
+        video { width: 90%; max-width: 600px; border-radius: 10px; background: #000; margin-top: 20px; border: 2px solid #333; }
+        .controls { margin-top: 20px; padding: 20px; background: #1e1e1e; border-radius: 8px; }
+        input { padding: 10px; border-radius: 4px; border: none; }
+        button { padding: 10px 20px; border-radius: 4px; border: none; background: #007bff; color: white; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .status { color: #00ff00; font-weight: bold; margin: 10px; }
     </style>
 </head>
 <body>
 
-    <div class="box">
-        <h2>OMNISYNC PUNCH-THROUGH</h2>
-        <input type="text" id="room-code" placeholder="ENTER ROOM CODE">
-        <br>
-        <button class="g-btn" onclick="init('guide')">GUIDE</button>
-        <button class="t-btn" onclick="init('tourist')">TOURIST</button>
-        <div id="status">READY</div>
-        <br>
-        <video id="vid" autoplay playsinline></video>
+    <h2>P2P Video Stream</h2>
+    
+    <div class="status" id="my-id">Initializing ID...</div>
+
+    <div class="controls">
+        <input type="text" id="remote-id" placeholder="Paste Remote ID here">
+        <button onclick="connectToPeer()">Connect & Stream</button>
     </div>
 
+    <video id="remote-video" autoplay playsinline></video>
+    <video id="local-video" autoplay playsinline muted style="width: 150px; margin-top: 10px;"></video>
+
     <script>
-        let peer = null;
-        let localStream = null;
+        const peer = new Peer(); // Creates a new PeerJS instance
+        let localStream;
 
-        async function init(role) {
-            const room = document.getElementById('room-code').value.toUpperCase().trim();
-            if(!room) return alert("Enter Code!");
+        // 1. Get user media (Camera)
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+            .then(stream => {
+                localStream = stream;
+                document.getElementById('local-video').srcObject = stream;
+            })
+            .catch(err => console.error("Failed to get local stream", err));
 
-            const status = document.getElementById('status');
-            const gID = "ROOM-" + room + "-GUIDE";
+        // 2. Display your unique ID
+        peer.on('open', (id) => {
+            document.getElementById('my-id').innerText = "Your ID: " + id;
+        });
 
-            // STUN/TURN configuration to bypass Firewalls
-            const config = {
-                'iceServers': [
-                    { 'urls': 'stun:stun.l.google.com:19302' },
-                    { 'urls': 'stun:stun1.l.google.com:19302' },
-                    { 'urls': 'stun:stun2.l.google.com:19302' }
-                ]
-            };
-
-            peer = new Peer(role === 'guide' ? gID : null, {
-                secure: true,
-                port: 443,
-                config: config,
-                debug: 2
+        // 3. Handle incoming calls (When phone calls laptop)
+        peer.on('call', (call) => {
+            call.answer(localStream); // Answer with your stream
+            call.on('stream', (remoteStream) => {
+                document.getElementById('remote-video').srcObject = remoteStream;
             });
+        });
 
-            peer.on('open', (id) => {
-                status.innerText = "ONLINE - " + role.toUpperCase();
-                if(role === 'guide') startGuide();
-                else status.innerText = "READY: CLICK TO CONNECT";
+        // 4. Function to start the call (From phone to laptop)
+        function connectToPeer() {
+            const remoteId = document.getElementById('remote-id').value;
+            if (!remoteId) return alert("Please enter an ID");
+
+            const call = peer.call(remoteId, localStream);
+            call.on('stream', (remoteStream) => {
+                document.getElementById('remote-video').srcObject = remoteStream;
             });
-
-            // TOURIST CLICK ACTION
-            window.onclick = () => {
-                if(peer && !peer.destroyed && !localStream) {
-                    status.innerText = "ATTEMPTING HANDSHAKE...";
-                    const call = peer.call(gID, new MediaStream());
-                    
-                    call.on('stream', s => {
-                        status.innerText = "CONNECTED!";
-                        const v = document.getElementById('vid');
-                        v.srcObject = s;
-                        v.play();
-                    });
-
-                    // Error handling for the specific call
-                    setTimeout(() => {
-                        if(status.innerText === "ATTEMPTING HANDSHAKE...") {
-                            status.innerText = "STILL TRYING... (Possible Firewall)";
-                        }
-                    }, 5000);
-                }
-            };
-        }
-
-        async function startGuide() {
-            try {
-                localStream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
-                document.getElementById('vid').srcObject = localStream;
-                document.getElementById('vid').muted = true;
-                
-                peer.on('call', call => {
-                    console.log("Receiving call...");
-                    call.answer(localStream);
-                });
-            } catch(e) { alert("Cam Blocked"); }
         }
     </script>
 </body>
