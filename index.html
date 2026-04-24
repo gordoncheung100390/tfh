@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OMNISYNC | FINAL HARDENED</title>
+    <title>OMNISYNC | STABLE STREAM</title>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
@@ -16,7 +16,6 @@
         :root { --accent: #00d2ff; --bg: #0a0a0a; --panel: #1a1a1a; }
         body, html { margin: 0; padding: 0; height: 100%; background: var(--bg); color: white; font-family: 'Inter', sans-serif; overflow: hidden; }
 
-        /* GATEKEEPER */
         #gatekeeper { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; align-items: center; justify-content: center; }
         .gate-card { background: var(--panel); padding: 40px; border-radius: 12px; text-align: center; border: 1px solid #333; width: 320px; }
         input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 6px; border: 1px solid #444; background: #000; color: #fff; box-sizing: border-box; outline: none; }
@@ -24,19 +23,17 @@
         .role-btn { flex: 1; padding: 10px; border: 1px solid #444; background: #222; color: #888; cursor: pointer; border-radius: 6px; font-size: 11px; font-weight: bold; }
         .role-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0, 210, 255, 0.1); }
 
-        /* APP LAYOUT */
         #app-shell { display: none; height: 100vh; width: 100vw; }
         #view-3d { flex: 1; background: #111; position: relative; height: 100%; }
         #view-2d { width: 30%; background: var(--panel); position: relative; border-left: 2px solid #000; height: 100%; }
         #resizer { width: 10px; background: #222; cursor: col-resize; z-index: 100; display: flex; align-items: center; justify-content: center; }
         #resizer::after { content: "||"; color: #444; font-size: 10px; }
 
-        /* HUD */
         .overlay { position: absolute; z-index: 50; pointer-events: none; }
         .controls { bottom: 20px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; pointer-events: auto; }
         
         #video-feed { top: 20px; right: 20px; width: 240px; height: 135px; background: #000; border-radius: 12px; border: 2px solid #333; overflow: hidden; pointer-events: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.8); z-index: 100; }
-        #video-feed video { width: 100%; height: 100%; object-fit: cover; }
+        #video-feed video { width: 100%; height: 100%; object-fit: cover; background: #000; }
         .live-tag { position: absolute; top: 10px; left: 10px; background: #555; color: white; padding: 2px 6px; border-radius: 4px; font-size: 8px; font-weight: bold; text-transform: uppercase; z-index: 110; }
 
         #roster-panel { top: 180px; left: 20px; width: 180px; background: rgba(0,0,0,0.7); border-radius: 10px; border: 1px solid #333; padding: 10px; pointer-events: auto; }
@@ -125,7 +122,6 @@
                         document.getElementById('cam-btn').style.display = 'block';
                     }
                     
-                    // Small delay to ensure DOM is ready
                     setTimeout(() => { 
                         App.eyes.init(); 
                         App.postOffice.checkIn(); 
@@ -152,36 +148,49 @@
         };
 
         App.studio = {
-            peer: null, localStream: null, camActive: false,
+            peer: null, 
+            localStream: null, 
+            currentCall: null, // GUARD: Prevents the re-connection flood
+            
             init: function() {
                 const gId = "OMNI-" + App.state.roomID + "-GUIDE";
                 
-                // HARDENED CONFIG: debug level 3 shows more info in console
                 this.peer = new Peer(App.state.user.role === 'guide' ? gId : undefined, {
-                    debug: 3,
+                    debug: 1, // Reduced to 1 to clean up the logs
                     config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }] }
                 });
                 
                 if(App.state.user.role === 'guide') {
                     this.peer.on('call', c => { 
-                        console.log("Guide answering call...");
-                        c.answer(this.localStream); 
+                        console.log("Guide: Received incoming call. Answering...");
+                        // Only answer if guide has their camera on
+                        if(this.localStream) {
+                            c.answer(this.localStream); 
+                        }
                     });
                 } else {
-                    // Tourist heartbeat to find guide
-                    setInterval(() => { if(!this.camActive) this.connectToGuide(); }, 5000);
+                    // Tourist heartbeat: only attempt if not currently in a call
+                    setInterval(() => { 
+                        if(!this.currentCall) {
+                            this.connectToGuide(); 
+                        }
+                    }, 4000);
                 }
             },
+
             toggleCam: function() {
                 const v = document.getElementById('remote-video');
                 if(!this.localStream) {
                     navigator.mediaDevices.getUserMedia({video:true, audio:true}).then(s => {
-                        this.localStream = s; v.srcObject = s; v.muted = true; v.play();
+                        this.localStream = s; 
+                        v.srcObject = s; 
+                        v.muted = true; 
+                        v.play();
                         document.getElementById('cam-btn').innerText = "Cam ON"; 
                         document.getElementById('cam-btn').style.background = "red";
                         document.getElementById('live-indicator').innerText = "LIVE"; 
                         document.getElementById('live-indicator').style.background = "red";
-                    }).catch(err => alert("Camera Access Denied. Check browser permissions."));
+                    }).catch(err => alert("Camera Access Denied."));
                 } else {
                     this.localStream.getTracks().forEach(t => t.stop()); 
                     this.localStream = null;
@@ -191,24 +200,33 @@
                     document.getElementById('live-indicator').innerText = "OFFLINE";
                 }
             },
+
             connectToGuide: function() {
-                const t = "OMNI-" + App.state.roomID + "-GUIDE";
-                // Tourist calls Guide with empty stream to handshake
-                const call = this.peer.call(t, new MediaStream());
-                if(!call) return;
+                const targetId = "OMNI-" + App.state.roomID + "-GUIDE";
+                // Handshake with an empty stream
+                const call = this.peer.call(targetId, new MediaStream());
                 
+                if(!call) return;
+
                 call.on('stream', s => { 
+                    console.log("Tourist: Stream received!");
                     const v = document.getElementById('remote-video');
                     if(v.srcObject !== s) {
                         v.srcObject = s; 
-                        v.muted = false; // Let tourist hear guide
-                        v.play().then(() => {
-                            this.camActive = true;
-                            document.getElementById('live-indicator').innerText = "GUIDE LIVE";
-                            document.getElementById('live-indicator').style.background = "green";
-                        }).catch(e => console.log("Waiting for user interaction to play video..."));
+                        v.muted = false;
+                        this.currentCall = call; // LOCK THE CONNECTION
+                        
+                        v.play().catch(e => {
+                            console.log("Auto-play blocked. User must click.");
+                        });
+                        
+                        document.getElementById('live-indicator').innerText = "GUIDE LIVE";
+                        document.getElementById('live-indicator').style.background = "green";
                     }
                 });
+
+                call.on('close', () => { this.currentCall = null; });
+                call.on('error', () => { this.currentCall = null; });
             }
         };
 
@@ -216,12 +234,12 @@
             map: null, panorama: null, markers: {}, 
             init: function() {
                 const startPos = { lat: 40.7580, lng: -73.9855 };
+                // Using standard Marker for now to avoid the complexity of Advanced Markers in this fix
                 this.map = new google.maps.Map(document.getElementById('view-2d'), { 
                     center: startPos, 
                     zoom: 18, 
                     streetViewControl: true, 
-                    mapTypeControl: false,
-                    mapId: "DEMO_MAP_ID" // Required for Advanced Markers
+                    mapTypeControl: false
                 });
                 
                 this.panorama = new google.maps.StreetViewPanorama(document.getElementById('view-3d'), { 
@@ -250,7 +268,6 @@
                         if(App.state.user.role === 'guide') {
                             App.postOffice.transmit(p.lat(), p.lng(), v.heading, v.pitch);
                         }
-                        // Update personal marker location
                         App.postOffice.db.ref("rooms/"+App.state.roomID+"/tourists/"+App.state.user.id).update({
                             lat:p.lat(), lng:p.lng(), name:App.state.user.name, role:App.state.user.role
                         });
@@ -302,7 +319,6 @@
                         list.innerHTML += `<div style="font-size:11px; margin-bottom:5px;">${u.role==='guide'?'👑':'👤'} ${u.name}</div>`;
                         
                         if(id !== App.state.user.id) {
-                            // FIX: Using modernized marker logic (Simple fallback to Marker for compatibility)
                             if(!App.eyes.markers[id]) {
                                 App.eyes.markers[id] = new google.maps.Marker({
                                     position:{lat:u.lat, lng:u.lng}, 
@@ -333,7 +349,6 @@
             }
         };
 
-        // Start the app
         App.init();
     </script>
 </body>
