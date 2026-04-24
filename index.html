@@ -3,93 +3,103 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>One-Way Broadcast</title>
+    <title>Live Broadcast</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
         body { font-family: sans-serif; background: #111; color: #fff; text-align: center; margin: 0; padding: 20px; }
         .video-box { width: 100%; max-width: 720px; aspect-ratio: 16/9; background: #000; border-radius: 12px; margin: 20px auto; overflow: hidden; border: 2px solid #333; }
         video { width: 100%; height: 100%; object-fit: cover; }
-        .controls { background: #222; padding: 20px; border-radius: 10px; display: inline-block; }
-        input { padding: 10px; border-radius: 5px; border: 1px solid #444; background: #000; color: #fff; margin-bottom: 10px; }
-        button { padding: 10px 20px; border-radius: 5px; border: none; background: #28a745; color: white; font-weight: bold; cursor: pointer; }
-        #peer-id-display { color: #00d4ff; font-weight: bold; font-family: monospace; font-size: 1.2em; margin: 10px; }
+        .setup-screen { background: #222; padding: 30px; border-radius: 15px; display: block; max-width: 400px; margin: 50px auto; }
+        .main-ui { display: none; }
+        button { padding: 15px 25px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin: 10px; font-size: 1em; }
+        .btn-phone { background: #007bff; color: white; }
+        .btn-pc { background: #6c757d; color: white; }
+        .btn-start { background: #28a745; color: white; width: 100%; }
+        input { padding: 12px; border-radius: 5px; border: 1px solid #444; background: #000; color: #fff; width: 80%; margin-bottom: 15px; }
+        #peer-id-display { color: #00d4ff; font-weight: bold; font-family: monospace; font-size: 1.4em; margin: 15px; padding: 10px; background: #000; border-radius: 5px; }
     </style>
 </head>
 <body>
 
-    <h2>Live Stream</h2>
-    
-    <div class="video-box">
-        <video id="view" autoplay playsinline></video>
+    <div id="setup-screen" class="setup-screen">
+        <h2>Who are you?</h2>
+        <button class="btn-phone" onclick="setRole('sender')">I am the PHONE<br>(Broadcaster)</button>
+        <button class="btn-pc" onclick="setRole('receiver')">I am the PC<br>(Viewer)</button>
     </div>
 
-    <div class="controls">
-        <div id="role-text">Initializing...</div>
-        <div id="peer-id-display">Connecting to network...</div>
+    <div id="main-ui" class="main-ui">
+        <h2 id="role-title">Live Stream</h2>
         
-        <div id="sender-ui" style="display:none;">
+        <div class="video-box">
+            <video id="view" autoplay playsinline></video>
+        </div>
+
+        <div id="pc-area" style="display:none;">
+            <p>Share this ID with the Phone:</p>
+            <div id="peer-id-display">Connecting...</div>
+            <p style="color: #aaa;">Waiting for phone to connect...</p>
+        </div>
+
+        <div id="phone-area" style="display:none;">
             <input type="text" id="target-id" placeholder="Paste PC ID here">
-            <br>
-            <button onclick="startBroadcast()">Start Broadcasting</button>
+            <button class="btn-start" onclick="startBroadcast()">START BROADCASTING</button>
         </div>
     </div>
 
     <script>
-        const videoElem = document.getElementById('view');
-        const idDisplay = document.getElementById('peer-id-display');
-        const senderUI = document.getElementById('sender-ui');
-        const roleText = document.getElementById('role-text');
-        
+        let role = '';
         let localStream;
-        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-
+        const videoElem = document.getElementById('view');
+        
         const peer = new Peer({
             config: { 'iceServers': [{ url: 'stun:stun1.l.google.com:19302' }, { url: 'stun:stun2.l.google.com:19302' }] }
         });
 
-        // 1. Setup based on device
-        peer.on('open', (id) => {
-            idDisplay.innerText = id;
-            if (isMobile) {
-                roleText.innerText = "YOU ARE THE SENDER (Phone)";
-                senderUI.style.display = "block";
+        function setRole(selectedRole) {
+            role = selectedRole;
+            document.getElementById('setup-screen').style.display = 'none';
+            document.getElementById('main-ui').style.display = 'block';
+
+            if (role === 'sender') {
+                document.getElementById('role-title').innerText = "Phone: Broadcasting";
+                document.getElementById('phone-area').style.display = 'block';
                 setupCamera();
             } else {
-                roleText.innerText = "YOU ARE THE RECEIVER (PC). Copy ID below:";
+                document.getElementById('role-title').innerText = "PC: Receiving";
+                document.getElementById('pc-area').style.display = 'block';
             }
+        }
+
+        peer.on('open', (id) => {
+            document.getElementById('peer-id-display').innerText = id;
         });
 
-        // 2. Camera setup for the phone
         async function setupCamera() {
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 videoElem.srcObject = localStream;
-                videoElem.muted = true; // Stay muted on phone to prevent feedback
+                videoElem.muted = true; // Don't hear yourself on phone
             } catch (e) {
                 alert("Camera error: " + e.message);
             }
         }
 
-        // 3. Sender Logic (Phone calls PC)
+        // Phone logic
         function startBroadcast() {
             const targetId = document.getElementById('target-id').value;
             if (!targetId) return alert("Enter the PC ID!");
-            
-            // Call the PC and send the phone's stream
             peer.call(targetId, localStream);
-            roleText.innerText = "LIVE - BROADCASTING";
+            alert("Streaming started!");
         }
 
-        // 4. Receiver Logic (PC answers Phone)
+        // PC logic
         peer.on('call', (call) => {
-            roleText.innerText = "LIVE - RECEIVING FEED";
-            call.answer(); // Answer with nothing (one-way)
+            call.answer(); 
             call.on('stream', (remoteStream) => {
                 videoElem.srcObject = remoteStream;
-                videoElem.muted = false; // Play audio on PC
+                videoElem.muted = false; // PC plays your voice!
             });
         });
-
     </script>
 </body>
 </html>
