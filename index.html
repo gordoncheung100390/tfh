@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OMNISYNC | V3.15 FINAL</title>
+    <title>OMNISYNC | V3.16 STABLE</title>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
@@ -15,15 +15,13 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body, html { margin: 0; padding: 0; height: 100dvh; width: 100vw; background: var(--bg); color: white; font-family: sans-serif; overflow: hidden; }
 
-        /* Gatekeeper */
         #gatekeeper { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; }
         .gate-card { background: var(--panel); padding: 30px; border-radius: 20px; text-align: center; border: 1px solid #333; width: 100%; max-width: 350px; }
         input { width: 100%; padding: 15px; margin: 10px 0; border-radius: 12px; border: 1px solid #444; background: #000; color: #fff; font-size: 16px; }
 
-        /* Main Layout */
         #app-shell { display: none; height: 100dvh; width: 100vw; flex-direction: column; }
         #view-3d { flex: 1.2; background: #111; position: relative; width: 100%; }
-        #view-2d { flex: 0.8; background: var(--panel); width: 100%; border-top: 2px solid #000; position: relative; }
+        #view-2d { flex: 0.8; background: var(--panel); width: 100%; border-top: 2px solid #000; }
         
         @media (min-width: 768px) {
             #app-shell { flex-direction: row; }
@@ -31,17 +29,14 @@
             #view-2d { width: 350px; flex: none; border-top: none; border-left: 2px solid #000; }
         }
 
-        /* Video Box */
         #video-container { position: absolute; top: 12px; left: 12px; width: 160px; aspect-ratio: 16/9; background: #000; border-radius: 12px; border: 2px solid var(--accent); overflow: hidden; z-index: 1000; }
         video { width: 100%; height: 100%; object-fit: cover; }
         #unmute-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.85); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 1010; }
         
-        /* UI Elements */
         .controls { position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; z-index: 1000; width: 90%; justify-content: center; }
         button { background: #fff; color: #000; border: none; padding: 14px 20px; border-radius: 30px; font-weight: bold; cursor: pointer; font-size: 11px; }
         button.active { background: var(--accent); }
         #broadcast-btn { background: #ff3b30; color: white; display: none; }
-        
         #search-container { position: absolute; top: 12px; right: 12px; z-index: 1000; display: none; }
         #pac-input { padding: 10px; border-radius: 8px; border: 1px solid var(--accent); background: #000; color: #fff; width: 180px; }
     </style>
@@ -50,7 +45,7 @@
 
     <div id="gatekeeper">
         <div class="gate-card">
-            <h2>OMNISYNC 3.15</h2>
+            <h2 style="color:var(--accent)">OMNISYNC 3.16</h2>
             <input type="text" id="room-input" placeholder="Room Code">
             <input type="text" id="username-input" placeholder="Your Name">
             <div style="display:flex; gap:10px; margin: 15px 0;">
@@ -83,9 +78,7 @@
             state: { role: 'tourist', room: 'LOBBY', name: 'User', id: "U"+Date.now(), isTethered: true },
             setRole: function(r) {
                 this.state.role = r;
-                document.getElementById('btn-t').className = r === 'tourist' ? 'active' : '';
                 document.getElementById('btn-t').style.background = r === 'tourist' ? '#fff' : '#222';
-                document.getElementById('btn-g').className = r === 'guide' ? 'active' : '';
                 document.getElementById('btn-g').style.background = r === 'guide' ? '#fff' : '#222';
             },
             launch: function() {
@@ -100,12 +93,7 @@
                 }
                 App.postOffice.init(); App.eyes.init(); App.studio.init();
             },
-            brain: {
-                toggleTether: function() {
-                    App.state.isTethered = !App.state.isTethered;
-                    document.getElementById('tether-btn').classList.toggle('active');
-                }
-            }
+            brain: { toggleTether: function() { App.state.isTethered = !App.state.isTethered; document.getElementById('tether-btn').classList.toggle('active'); } }
         };
 
         App.eyes = {
@@ -115,14 +103,6 @@
                 this.map = new google.maps.Map(document.getElementById('view-2d'), { center: startPos, zoom: 17 });
                 this.panorama = new google.maps.StreetViewPanorama(document.getElementById('view-3d'), { position: startPos, addressControl: false });
                 this.map.setStreetView(this.panorama);
-                
-                if(App.state.role === 'guide') {
-                    const search = new google.maps.places.Autocomplete(document.getElementById("pac-input"));
-                    search.addListener("place_changed", () => {
-                        const p = search.getPlace();
-                        if(p.geometry) this.panorama.setPosition(p.geometry.location);
-                    });
-                }
             }
         };
 
@@ -135,21 +115,23 @@
                 
                 if(App.state.role === 'tourist') {
                     this.db.ref("rooms/"+App.state.room+"/live_id").on("value", s => {
-                        const targetId = s.val();
-                        if(targetId) App.studio.pullStream(targetId);
+                        App.studio.currentGuideId = s.val();
+                        if(App.studio.currentGuideId) App.studio.pullStream();
                     });
                 }
             }
         };
 
         App.studio = {
-            peer: null, mystream: null,
+            peer: null, mystream: null, currentGuideId: null, retryTimer: null,
             init: function() {
                 if(App.state.role === 'tourist') {
                     this.peer = new Peer("T-" + App.state.id);
                     this.peer.on('call', call => {
+                        console.log("Call received, answering...");
                         call.answer();
                         call.on('stream', s => {
+                            clearInterval(this.retryTimer); // Stop knocking once we have video
                             document.getElementById('view').srcObject = s;
                             document.getElementById('unmute-overlay').style.display = 'flex';
                         });
@@ -169,13 +151,28 @@
 
                     this.peer.on('open', (id) => {
                         App.postOffice.db.ref("rooms/"+App.state.room+"/live_id").set(id);
-                        this.peer.on('call', call => { call.answer(this.mystream); });
+                        this.peer.on('call', call => { 
+                            console.log("Guide answering pull request...");
+                            call.answer(this.mystream); 
+                        });
                     });
-                    alert("LIVE on fresh channel!");
+                    alert("LIVE. Waiting for tourists to connect...");
                 } catch (e) { alert("Camera failed: " + e.message); }
             },
-            pullStream: function(targetId) {
-                this.peer.call(targetId, new MediaStream());
+            pullStream: function() {
+                if(!this.currentGuideId || App.state.role !== 'tourist') return;
+                
+                // Clear any existing knockers
+                clearInterval(this.retryTimer);
+                
+                // Start knocking every 3 seconds until the Guide answers
+                this.retryTimer = setInterval(() => {
+                    const v = document.getElementById('view');
+                    if(this.currentGuideId && (!v.srcObject || v.paused)) {
+                        console.log("Knocking on Guide's door...");
+                        this.peer.call(this.currentGuideId, new MediaStream());
+                    }
+                }, 3000);
             },
             forcePlay: function() {
                 const v = document.getElementById('view'); v.muted = false; v.play();
