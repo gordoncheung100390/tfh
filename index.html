@@ -1,107 +1,84 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BROADCAST 5.1 | BYPASS</title>
+    <title>BROADCAST 5.2 | 5G BRIDGE</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" crossorigin="anonymous"></script>
     <style>
-        body { background: #111; color: #fff; font-family: sans-serif; text-align: center; margin: 0; padding: 20px; }
-        #video-wrapper { position: relative; width: 100%; max-width: 500px; margin: 20px auto; aspect-ratio: 16/9; background: #000; border: 2px solid #333; border-radius: 12px; overflow: hidden; }
-        video { width: 100%; height: 100%; object-fit: cover; }
-        button { padding: 18px; width: 100%; max-width: 280px; font-size: 16px; margin: 10px; cursor: pointer; border-radius: 10px; border: none; font-weight: bold; }
-        #status { font-family: monospace; color: #0f0; margin: 15px; font-size: 13px; min-height: 1.2em; }
+        body { background: #000; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; }
+        video { width: 100%; max-width: 500px; background: #222; border-radius: 10px; margin-top: 20px; }
+        button { padding: 20px; width: 100%; max-width: 300px; font-size: 18px; margin: 10px; cursor: pointer; border: none; border-radius: 10px; }
+        #status { color: #0f0; margin: 20px; font-family: monospace; }
     </style>
 </head>
 <body>
 
-    <div id="ui-initial">
-        <h2>BROADCAST 5.1</h2>
-        <button style="background:#007bff; color:#fff;" onclick="init('sender')">PHONE: START BROADCAST</button>
-        <button style="background:#444; color:#fff;" onclick="init('receiver')">PC: RECEIVE VIDEO</button>
+    <div id="ui">
+        <h2>5G TO PC BRIDGE</h2>
+        <button style="background:#007bff; color:#fff;" onclick="start('sender')">PHONE: SEND (5G)</button>
+        <button style="background:#444; color:#fff;" onclick="start('receiver')">PC: RECEIVE (Wi-Fi)</button>
     </div>
 
-    <div id="status">Waiting for user...</div>
-
-    <div id="video-wrapper">
-        <video id="v" autoplay playsinline muted></video>
-    </div>
+    <div id="status">Waiting...</div>
+    <video id="v" autoplay playsinline muted></video>
 
     <script>
-        const status = document.getElementById('status');
-        const video = document.getElementById('v');
-        const PC_ID = 'omni-secure-channel-2026'; 
+        const PC_ID = 'omni-5g-bridge-2026';
         let peer;
 
-        async function init(role) {
-            document.getElementById('ui-initial').style.display = 'none';
-            status.innerText = "Configuring Security Bypass...";
+        function start(role) {
+            document.getElementById('ui').style.display = 'none';
+            document.getElementById('status').innerText = "Opening Relay Tunnel...";
 
-            // Initialize PeerJS with a specific config to avoid storage tracking errors
+            // These STUN servers help 5G find your home Wi-Fi IP
+            const config = {
+                'iceServers': [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' }
+                ]
+            };
+
             peer = new Peer(role === 'receiver' ? PC_ID : undefined, {
-                debug: 2,
+                config: config,
                 secure: true,
-                config: {
-                    'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }]
-                }
+                debug: 2
             });
 
             peer.on('open', (id) => {
-                if (role === 'receiver') {
-                    status.innerText = "PC READY: Waiting for phone...";
+                if(role === 'receiver') {
+                    document.getElementById('status').innerText = "PC READY: Waiting for 5G signal...";
                 } else {
-                    startPhoneStream();
+                    sendVideo();
                 }
             });
 
-            peer.on('error', (err) => {
-                console.error(err);
-                status.style.color = '#ff4444';
-                status.innerText = "Network Error: " + err.type;
-                if(err.type === 'unavailable-id') alert("Channel busy. Refresh PC and try again.");
-            });
-
-            // PC Receiver Logic
             peer.on('call', (call) => {
-                status.innerText = "CONNECTED! Receiving pixels...";
+                document.getElementById('status').innerText = "5G Signal Found! Connecting...";
                 call.answer();
-                call.on('stream', (remoteStream) => {
-                    video.srcObject = remoteStream;
-                    video.muted = false; // PC hears the audio
+                call.on('stream', (s) => {
+                    const video = document.getElementById('v');
+                    video.srcObject = s;
+                    video.muted = false;
                     video.play();
+                    document.getElementById('status').innerText = "LIVE FROM 5G";
                 });
             });
         }
 
-        async function startPhoneStream() {
-            status.innerText = "Accessing Camera...";
+        async function sendVideo() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "environment" }, 
-                    audio: true 
-                });
-                
-                // Show local camera on phone so you know it's working
-                video.srcObject = stream;
-                status.innerText = "Connecting to PC...";
-
-                const call = peer.call(PC_ID, stream);
-                
-                call.on('error', (err) => {
-                    status.innerText = "Handshake failed. Refresh PC.";
-                });
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: true });
+                document.getElementById('v').srcObject = stream;
+                document.getElementById('status').innerText = "Broadcasting on 5G...";
+                peer.call(PC_ID, stream);
             } catch (e) {
-                status.innerText = "Hardware Blocked: " + e.message;
+                alert("Camera error: " + e.message);
             }
         }
 
-        // Global Unmute for PC
-        document.addEventListener('click', () => {
-            if(video.srcObject) {
-                video.muted = false;
-                status.innerText = "LIVE STREAM ACTIVE (AUDIO ON)";
-            }
-        });
+        // Essential for PC Audio
+        document.addEventListener('click', () => { document.getElementById('v').muted = false; });
     </script>
 </body>
 </html>
