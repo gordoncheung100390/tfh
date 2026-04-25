@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OMNISYNC | V3.12 STABLE</title>
+    <title>OMNISYNC | V3.13 STABLE</title>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
@@ -12,38 +12,37 @@
     
     <style>
         :root { --accent: #00d2ff; --bg: #0a0a0a; --panel: #1a1a1a; }
-        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-        body, html { margin: 0; padding: 0; height: 100dvh; width: 100vw; background: var(--bg); color: white; font-family: sans-serif; overflow: hidden; }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; outline: none; }
+        body, html { margin: 0; padding: 0; height: 100dvh; width: 100vw; background: var(--bg); color: white; font-family: -apple-system, BlinkMacSystemFont, sans-serif; overflow: hidden; }
         #gatekeeper { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .gate-card { background: var(--panel); padding: 30px; border-radius: 15px; text-align: center; border: 1px solid #333; width: 100%; max-width: 350px; }
-        input { width: 100%; padding: 15px; margin: 10px 0; border-radius: 8px; border: 1px solid #444; background: #000; color: #fff; font-size: 16px; }
+        .gate-card { background: var(--panel); padding: 30px; border-radius: 20px; text-align: center; border: 1px solid #333; width: 100%; max-width: 350px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        input { width: 100%; padding: 15px; margin: 10px 0; border-radius: 12px; border: 1px solid #444; background: #000; color: #fff; font-size: 16px; }
         #app-shell { display: none; height: 100dvh; width: 100vw; flex-direction: column; }
         #view-3d { flex: 1.2; background: #111; position: relative; width: 100%; }
-        #view-2d { flex: 0.8; background: var(--panel); width: 100%; border-top: 2px solid #000; }
-        @media (min-width: 768px) { #app-shell { flex-direction: row; } #view-3d { flex: 1; } #view-2d { width: 350px; flex: none; border-top: none; border-left: 2px solid #000; } }
-        #video-container { position: absolute; top: 10px; left: 10px; width: 160px; aspect-ratio: 16/9; background: #000; border-radius: 8px; border: 2px solid var(--accent); overflow: hidden; z-index: 1000; }
-        video { width: 100%; height: 100%; object-fit: cover; }
-        #unmute-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 1010; }
-        #search-container { position: absolute; top: 10px; right: 10px; width: 180px; z-index: 1000; display: none; }
-        #pac-input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--accent); background: #000; color: #fff; font-size: 14px; }
-        .controls { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 1000; width: 90%; justify-content: center; }
-        button { background: #fff; color: #000; border: none; padding: 12px 18px; border-radius: 25px; font-weight: bold; cursor: pointer; font-size: 11px; }
-        button.active { background: var(--accent); }
-        #roster-panel { position: absolute; bottom: 60px; left: 10px; width: 120px; background: rgba(0,0,0,0.6); padding: 8px; border-radius: 8px; font-size: 10px; z-index: 1000; pointer-events: none; }
+        #view-2d { flex: 0.8; background: var(--panel); width: 100%; border-top: 1px solid #333; }
+        @media (min-width: 768px) { #app-shell { flex-direction: row; } #view-3d { flex: 1; } #view-2d { width: 350px; flex: none; border-top: none; border-left: 1px solid #333; } }
+        #video-container { position: absolute; top: 12px; left: 12px; width: 160px; aspect-ratio: 16/9; background: #000; border-radius: 12px; border: 1.5px solid var(--accent); overflow: hidden; z-index: 1000; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        video { width: 100%; height: 100%; object-fit: cover; background: #000; }
+        #unmute-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.85); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 1010; backdrop-filter: blur(4px); }
+        .controls { position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; z-index: 1000; width: 90%; justify-content: center; }
+        button { background: #fff; color: #000; border: none; padding: 14px 22px; border-radius: 30px; font-weight: 700; cursor: pointer; font-size: 12px; transition: transform 0.1s; }
+        button:active { transform: scale(0.95); }
+        button.active { background: var(--accent); color: #000; }
+        #roster-panel { position: absolute; bottom: 75px; left: 12px; width: 130px; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 12px; font-size: 11px; z-index: 1000; pointer-events: none; backdrop-filter: blur(8px); }
     </style>
 </head>
 <body>
 
     <div id="gatekeeper">
         <div class="gate-card">
-            <h2 style="margin-top:0;">OMNISYNC 3.12</h2>
+            <h2 style="margin:0 0 20px 0; color: var(--accent);">OMNISYNC 3.13</h2>
             <input type="text" id="room-input" placeholder="Room Code">
             <input type="text" id="username-input" placeholder="Your Name">
             <div style="display:flex; gap:10px; margin: 15px 0;">
                 <button id="btn-t" onclick="App.setRole('tourist')" style="flex:1">TOURIST</button>
                 <button id="btn-g" onclick="App.setRole('guide')" style="flex:1; background:#222; color:#888;">GUIDE</button>
             </div>
-            <button onclick="App.launch()" style="width:100%; background: var(--accent); padding:15px; font-size: 16px;">START</button>
+            <button onclick="App.launch()" style="width:100%; background: var(--accent); padding:16px; font-size: 16px;">ENTER TOUR</button>
         </div>
     </div>
 
@@ -51,15 +50,17 @@
         <div id="view-3d">
             <div id="video-container">
                 <div id="unmute-overlay">
-                    <button onclick="App.studio.forcePlay()" style="background:var(--accent); padding:10px 20px; border-radius:30px;">WATCH LIVE</button>
+                    <button onclick="App.studio.forcePlay()" style="background:var(--accent); padding:12px 24px;">WATCH LIVE</button>
                 </div>
                 <video id="view" autoplay playsinline muted></video>
             </div>
-            <div id="search-container"><input id="pac-input" type="text" placeholder="Search..."></div>
+            <div id="search-container" style="position:absolute; top:12px; right:12px; display:none; z-index:1000;">
+                <input id="pac-input" type="text" placeholder="Search..." style="margin:0; width:180px; padding:10px; border-radius:8px;">
+            </div>
             <div id="roster-panel"><div id="user-list"></div></div>
             <div class="controls">
                 <button id="tether-btn" onclick="App.brain.toggleTether()">Tethered</button>
-                <button id="broadcast-btn" onclick="App.studio.startBroadcast()" style="display:none; background:#ff4444; color:white;">GO LIVE</button>
+                <button id="broadcast-btn" onclick="App.studio.startBroadcast()" style="display:none; background:#ff3b30; color:white;">GO LIVE</button>
             </div>
         </div>
         <div id="view-2d"></div>
@@ -67,7 +68,7 @@
 
     <script>
         const App = {
-            state: { role: 'tourist', room: 'LOBBY', name: 'User', id: "U"+Date.now(), isTethered: true, isSyncing: false },
+            state: { role: 'tourist', room: 'LOBBY', name: 'User', id: "U"+Math.floor(Math.random()*9999), isTethered: true, isSyncing: false },
             setRole: function(r) {
                 this.state.role = r;
                 document.getElementById('btn-t').style = r==='tourist' ? "background:#fff" : "background:#222;color:#888";
@@ -91,9 +92,15 @@
             map: null, panorama: null, markers: {},
             init: function() {
                 const center = { lat: 40.758, lng: -73.985 };
-                this.map = new google.maps.Map(document.getElementById('view-2d'), { center: center, zoom: 17, streetViewControl: true, mapTypeControl: false, zoomControl: false });
-                this.panorama = new google.maps.StreetViewPanorama(document.getElementById('view-3d'), { position: center, addressControl: false });
+                this.map = new google.maps.Map(document.getElementById('view-2d'), { center: center, zoom: 17, disableDefaultUI: true });
+                this.panorama = new google.maps.StreetViewPanorama(document.getElementById('view-3d'), { position: center, addressControl: false, disableDefaultUI: true });
                 this.map.setStreetView(this.panorama);
+                if(App.state.role === 'guide') {
+                    const search = new google.maps.places.Autocomplete(document.getElementById("pac-input"));
+                    search.addListener("place_changed", () => {
+                        const p = search.getPlace(); if(p.geometry) { this.panorama.setPosition(p.geometry.location); }
+                    });
+                }
                 const report = () => {
                     const p = this.panorama.getPosition(); const v = this.panorama.getPov(); if(!p) return;
                     this.map.setCenter(p);
@@ -109,7 +116,7 @@
                     if(this.markers[uid]) { this.markers[uid].setPosition({lat: u.lat, lng: u.lng}); } else {
                         this.markers[uid] = new google.maps.Marker({
                             position: {lat: u.lat, lng: u.lng}, map: this.map, label: { text: u.name[0], color: "white" },
-                            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: u.role === 'guide' ? "#ff0000" : "#00d2ff", fillOpacity: 1, strokeWeight: 2, strokeColor: "#fff" }
+                            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: u.role === 'guide' ? "#ff3b30" : "#00d2ff", fillOpacity: 1, strokeWeight: 2, strokeColor: "#fff" }
                         });
                     }
                 });
@@ -125,50 +132,47 @@
                 this.db.ref("rooms/"+App.state.room+"/users/"+App.state.id).onDisconnect().remove();
 
                 if(App.state.role === 'guide') {
-                    // GUIDE: Watch for "pokes" from tourists and call them
+                    // GUIDE: Reset room stream data on start
+                    this.db.ref("rooms/"+App.state.room+"/stream").remove();
                     this.db.ref("rooms/"+App.state.room+"/pokes").on("child_added", (snap) => {
-                        const touristId = snap.val().id;
+                        const tid = snap.val().id;
                         if(App.studio.mystream) {
-                            console.log("Detected Poke! Pushing stream to:", touristId);
-                            App.studio.peer.call("ID-" + touristId, App.studio.mystream);
+                            console.log("Poking Tourist:", tid);
+                            App.studio.peer.call("ID-" + tid, App.studio.mystream);
                         }
-                        snap.ref.remove(); // Clear poke after handling
+                        snap.ref.remove();
                     });
                 } else {
-                    // TOURIST: Tether logic
                     this.db.ref("rooms/"+App.state.room+"/guide").on("value", s => { if(s.val() && App.state.isTethered) App.postOffice.applyMove(s.val()); });
                     
-                    // TOURIST: Watch for stream active flag and send a "Poke"
-                    this.db.ref("rooms/"+App.state.room+"/stream").on("value", s => {
-                        if(s.val() && s.val().active) {
-                            console.log("Guide is active. Sending Poke...");
-                            this.db.ref("rooms/"+App.state.room+"/pokes").push({ id: App.state.id });
-                        }
-                    });
+                    // TOURIST: Smart Heartbeat
+                    setInterval(() => {
+                        this.db.ref("rooms/"+App.state.room+"/stream").once("value", s => {
+                            const v = document.getElementById('view');
+                            if(s.val() && s.val().active && (!v.srcObject || v.paused)) {
+                                console.log("Stream active but no video. Poking Guide...");
+                                this.db.ref("rooms/"+App.state.room+"/pokes").push({ id: App.state.id });
+                            }
+                        });
+                    }, 5000);
                 }
 
                 this.db.ref("rooms/"+App.state.room+"/users").on("value", s => {
-                    const users = s.val() || {};
-                    document.getElementById('user-list').innerHTML = Object.values(users).map(u => `<div>${u.role==='guide'?'👑':'👤'} ${u.name}</div>`).join('');
-                    App.eyes.renderDots(users);
+                    const u = s.val() || {};
+                    document.getElementById('user-list').innerHTML = Object.values(u).map(x => `<div>${x.role==='guide'?'👑':'👤'} ${x.name}</div>`).join('');
+                    App.eyes.renderDots(u);
                 });
             },
             transmit: function(data) { this.db.ref("rooms/"+App.state.room+"/guide").set(data); },
-            applyMove: function(d) {
-                App.state.isSyncing = true;
-                App.eyes.panorama.setPosition({lat: d.lat, lng: d.lng}); App.eyes.panorama.setPov({heading: d.h, pitch: d.p});
-                setTimeout(() => App.state.isSyncing = false, 200);
-            }
+            applyMove: function(d) { App.state.isSyncing = true; App.eyes.panorama.setPosition({lat: d.lat, lng: d.lng}); App.eyes.panorama.setPov({heading: d.h, pitch: d.p}); setTimeout(() => App.state.isSyncing = false, 200); }
         };
 
         App.studio = {
             peer: null, mystream: null,
             init: function() {
-                // Using "ID-" prefix to avoid simple number-only ID issues
-                this.peer = new Peer("ID-" + App.state.id, { debug: 1 });
-                
+                if(this.peer) this.peer.destroy();
+                this.peer = new Peer("ID-" + App.state.id);
                 this.peer.on('call', call => {
-                    console.log("Incoming call received!");
                     call.answer();
                     call.on('stream', s => {
                         const v = document.getElementById('view');
@@ -183,9 +187,9 @@
                     this.mystream = s;
                     document.getElementById('view').srcObject = s;
                     document.getElementById('view').muted = true;
-                    App.postOffice.db.ref("rooms/"+App.state.room+"/stream").set({ active: true, ts: Date.now() });
-                    alert("LIVE. Tourists notified.");
-                } catch (e) { alert("Camera failed: " + e.message); }
+                    // Signal active
+                    App.postOffice.db.ref("rooms/"+App.state.room+"/stream").set({ active: true, sid: Date.now() });
+                } catch (e) { alert("Cam Error: " + e.message); }
             },
             forcePlay: function() {
                 const v = document.getElementById('view'); v.muted = false; v.play();
@@ -196,9 +200,9 @@
         App.brain = {
             toggleTether: function() {
                 App.state.isTethered = !App.state.isTethered;
-                const btn = document.getElementById('tether-btn');
-                btn.innerText = App.state.isTethered ? "Tethered" : "Roaming";
-                btn.className = App.state.isTethered ? "" : "active";
+                const b = document.getElementById('tether-btn');
+                b.innerText = App.state.isTethered ? "Tethered" : "Roaming";
+                b.className = App.state.isTethered ? "" : "active";
             }
         };
     </script>
