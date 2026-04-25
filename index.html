@@ -1,77 +1,124 @@
-<script>
-    const PC_ID = 'omni-5g-aggressor-2026';
-    let peer;
-    let callRetryInterval;
-    const video = document.getElementById('v');
-    const status = document.getElementById('status');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>OMNISYNC 5.6 | 5G AGGRESSOR</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" crossorigin="anonymous"></script>
+    <style>
+        body { background: #000; color: #fff; font-family: -apple-system, sans-serif; text-align: center; margin: 0; padding: 20px; }
+        #v-container { width: 100%; max-width: 500px; aspect-ratio: 16/9; background: #111; margin: 15px auto; border-radius: 15px; border: 2px solid #333; overflow: hidden; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        button { padding: 20px; width: 100%; max-width: 300px; font-size: 18px; margin: 10px; cursor: pointer; border: none; border-radius: 12px; font-weight: bold; }
+        #status { color: #00ff00; font-family: monospace; font-size: 13px; margin: 15px; min-height: 1.5em; }
+    </style>
+</head>
+<body>
 
-    function start(role) {
-        document.getElementById('ui').style.display = 'none';
-        status.innerText = "Initiating 5G Tunnel...";
+    <div id="ui">
+        <h2>OMNISYNC v5.6</h2>
+        <button style="background:#007bff; color:#fff;" onclick="start('sender')">PHONE: SEND (5G)</button>
+        <button style="background:#333; color:#fff;" onclick="start('receiver')">PC: RECEIVE (Wi-Fi)</button>
+    </div>
 
-        peer = new Peer(role === 'receiver' ? PC_ID : undefined, {
-            secure: true,
-            config: {
+    <div id="status">READY</div>
+    
+    <div id="v-container">
+        <video id="v" autoplay playsinline muted></video>
+    </div>
+
+    <script>
+        const PC_ID = 'omni-5g-aggressor-2026';
+        let peer;
+        let retryTimer;
+        const video = document.getElementById('v');
+        const status = document.getElementById('status');
+
+        function start(role) {
+            document.getElementById('ui').style.display = 'none';
+            status.innerText = "GATHERING NETWORK PATHS...";
+
+            // Expanded STUN list to find the 5G-to-Wi-Fi bridge faster
+            const config = {
                 iceServers: [
                     { urls: 'stun:stun.l.google.com:19302' },
                     { urls: 'stun:stun1.l.google.com:19302' },
                     { urls: 'stun:stun2.l.google.com:19302' },
                     { urls: 'stun:stun3.l.google.com:19302' }
                 ],
-                iceTransportPolicy: 'all',
                 iceCandidatePoolSize: 10
-            }
-        });
-
-        peer.on('open', (id) => {
-            if(role === 'receiver') {
-                status.innerText = "PC READY: Awaiting 5G Signal...";
-            } else {
-                startCameraAndCall();
-            }
-        });
-
-        peer.on('call', (call) => {
-            status.innerText = "SIGNAL DETECTED... CONNECTING";
-            call.answer();
-            call.on('stream', (s) => {
-                if (video.srcObject !== s) {
-                    video.srcObject = s;
-                    video.play();
-                    status.innerText = "LIVE: CLICK TO UNMUTE";
-                }
-            });
-        });
-    }
-
-    async function startCameraAndCall() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment", width: 640 }, 
-                audio: true 
-            });
-            video.srcObject = stream;
-            video.muted = true;
-            video.play();
-
-            // AGGRESSIVE RETRY: Call the PC every 3 seconds until it answers
-            status.innerText = "Broadcasting (5G)...";
-            const attemptCall = () => {
-                if (peer && !peer.destroyed) {
-                    console.log("Attempting handshake...");
-                    peer.call(PC_ID, stream);
-                }
             };
 
-            attemptCall();
-            callRetryInterval = setInterval(() => {
-                if (status.innerText.includes("Broadcasting")) {
-                    attemptCall();
-                } else {
-                    clearInterval(callRetryInterval);
-                }
-            }, 3000);
+            peer = new Peer(role === 'receiver' ? PC_ID : undefined, {
+                config: config,
+                secure: true,
+                debug: 1
+            });
 
-        } catch (e) { status.innerText = "Camera Error"; }
-    }
-</script>
+            peer.on('open', (id) => {
+                if(role === 'receiver') {
+                    status.innerText = "PC READY: WAITING FOR 5G SIGNAL...";
+                } else {
+                    initCameraAndCall();
+                }
+            });
+
+            peer.on('call', (call) => {
+                status.innerText = "SIGNAL FOUND! CONNECTING...";
+                call.answer();
+                call.on('stream', (s) => {
+                    if (video.srcObject !== s) {
+                        video.srcObject = s;
+                        video.muted = true;
+                        video.play().catch(() => {});
+                        status.innerText = "LIVE: CLICK TO UNMUTE";
+                    }
+                });
+            });
+
+            peer.on('error', (err) => {
+                console.error(err);
+                if(err.type === 'unavailable-id') location.reload();
+            });
+        }
+
+        async function initCameraAndCall() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment", width: 640 }, 
+                    audio: true 
+                });
+                
+                video.srcObject = stream;
+                video.muted = true;
+                video.play();
+                
+                status.innerText = "BROADCASTING (5G)...";
+
+                // AGGRESSIVE RETRY: If 5G drops the packet, we try again every 3 seconds
+                const attemptCall = () => {
+                    if (peer && !peer.destroyed && status.innerText.includes("BROADCASTING")) {
+                        console.log("Sending handshake to PC...");
+                        peer.call(PC_ID, stream);
+                    }
+                };
+
+                attemptCall();
+                retryTimer = setInterval(attemptCall, 3000);
+
+            } catch (e) {
+                status.innerText = "CAMERA ERROR: " + e.message;
+            }
+        }
+
+        // UNMUTE ON CLICK (Required for PC Audio)
+        document.addEventListener('click', () => {
+            if(video.srcObject) {
+                video.muted = false;
+                status.innerText = "LIVE STREAM ACTIVE";
+                if(retryTimer) clearInterval(retryTimer); // Stop retrying once connected
+            }
+        });
+    </script>
+</body>
+</html>
