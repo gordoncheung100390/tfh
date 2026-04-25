@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OMNISYNC 4.0 | STABLE HYBRID</title>
+    <title>OMNISYNC 4.0.1</title>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs&libraries=places"></script>
     <style>
@@ -11,36 +11,38 @@
         body { font-family: sans-serif; background: var(--bg); color: #fff; margin: 0; overflow: hidden; height: 100dvh; display: flex; flex-direction: column; }
         
         /* Setup Screen */
-        .setup-screen { position: fixed; inset: 0; background: #222; z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; text-align: center; }
-        button { padding: 15px 25px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin: 10px; transition: 0.2s; }
-        .btn-phone { background: var(--accent); color: white; width: 200px; }
-        .btn-pc { background: #6c757d; color: white; width: 200px; }
-        input { padding: 12px; border-radius: 5px; border: 1px solid #444; background: #000; color: #fff; width: 250px; margin-bottom: 10px; }
+        #setup-screen { position: fixed; inset: 0; background: #222; z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
+        button { padding: 15px 25px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin: 10px; }
+        .btn-phone { background: var(--accent); color: white; width: 220px; }
+        .btn-pc { background: #6c757d; color: white; width: 220px; }
+        input { padding: 15px; border-radius: 8px; border: 1px solid #444; background: #000; color: #fff; width: 260px; font-size: 16px; margin-top: 15px; }
 
         /* UI Layout */
         #main-ui { display: none; flex: 1; flex-direction: column; height: 100%; }
-        #view-top { flex: 1.2; position: relative; background: #000; border-bottom: 2px solid #000; }
-        #view-bottom { flex: 0.8; background: #1a1a1a; }
+        #view-top { flex: 1.2; position: relative; background: #000; }
+        #view-bottom { flex: 0.8; background: #1a1a1a; border-top: 2px solid #000; }
 
-        /* Video Container (Floating Overlay Style) */
+        /* Floating Video */
         #video-container { position: absolute; top: 10px; left: 10px; width: 140px; aspect-ratio: 16/9; background: #000; border-radius: 8px; border: 2px solid var(--accent); z-index: 1000; overflow: hidden; }
         video { width: 100%; height: 100%; object-fit: cover; }
-
         #unmute-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 1100; }
-        #id-display { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); padding: 5px 10px; border-radius: 5px; font-size: 12px; font-family: monospace; z-index: 1000; }
+        #id-display { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); padding: 5px 10px; border-radius: 5px; font-size: 11px; z-index: 1000; }
     </style>
 </head>
 <body>
 
-    <div id="setup-screen" class="setup-screen">
-        <h2 style="color:var(--accent)">OMNISYNC 4.0</h2>
-        <p>Select your device role to begin</p>
-        <button class="btn-phone" onclick="App.setRole('sender')">I am the PHONE</button>
-        <button class="btn-pc" onclick="App.setRole('receiver')">I am the PC</button>
+    <div id="setup-screen">
+        <h2 style="color:var(--accent)">OMNISYNC 4.0.1</h2>
         
-        <div id="handshake-area" style="display:none; margin-top:20px; border-top:1px solid #444; padding-top:20px;">
-            <input type="text" id="target-id" placeholder="Paste ID here">
-            <button onclick="App.startBroadcast()" style="background:#28a745; color:white;">CONNECT & START</button>
+        <div id="role-selection">
+            <button class="btn-phone" onclick="App.startAsPhone()">I am the PHONE</button>
+            <button class="btn-pc" onclick="App.startAsPC()">I am the PC</button>
+        </div>
+
+        <div id="phone-handshake" style="display:none;">
+            <p>Camera Active. Paste PC ID below:</p>
+            <input type="text" id="target-id" placeholder="Paste PC ID here">
+            <button onclick="App.connectToPC()" style="background:#28a745; color:white; width:260px;">GO LIVE</button>
         </div>
     </div>
 
@@ -49,13 +51,13 @@
             <div id="id-display">ID: Connecting...</div>
             <div id="video-container">
                 <div id="unmute-overlay">
-                    <button onclick="App.forcePlay()" style="background: #ffc107; color: #000; padding:5px 10px; font-size:10px;">CLICK TO HEAR</button>
+                    <button onclick="App.forcePlay()" style="background: #ffc107; color: #000; padding:5px; font-size:10px;">UNMUTE</button>
                 </div>
                 <video id="view" autoplay playsinline></video>
             </div>
             <div id="pano" style="width:100%; height:100%;"></div>
         </div>
-        <div id="view-bottom" id="map">
+        <div id="view-bottom">
             <div id="map-canvas" style="width:100%; height:100%;"></div>
         </div>
     </div>
@@ -66,33 +68,36 @@
             localStream: null,
             peer: new Peer({ config: { 'iceServers': [{ url: 'stun:stun1.l.google.com:19302' }] } }),
 
-            setRole: function(r) {
-                this.role = r;
-                document.querySelector('.btn-phone').style.display = 'none';
-                document.querySelector('.btn-pc').style.display = 'none';
-                
-                if (r === 'sender') {
-                    document.getElementById('handshake-area').style.display = 'block';
-                    this.initCamera();
-                } else {
-                    this.initUI();
-                }
-            },
-
-            initCamera: async function() {
+            startAsPhone: async function() {
+                this.role = 'sender';
                 try {
-                    // Capping resolution to prevent phone burnout (Teams Strategy)
+                    // Start Camera immediately
                     this.localStream = await navigator.mediaDevices.getUserMedia({ 
                         video: { width: 640, height: 480, facingMode: "environment" }, 
                         audio: true 
                     });
                     document.getElementById('view').srcObject = this.localStream;
                     document.getElementById('view').muted = true;
-                    this.initUI();
+                    
+                    // Show input box
+                    document.getElementById('role-selection').style.display = 'none';
+                    document.getElementById('phone-handshake').style.display = 'block';
                 } catch (e) { alert("Camera Error: " + e.message); }
             },
 
-            initUI: function() {
+            startAsPC: function() {
+                this.role = 'receiver';
+                this.launchUI();
+            },
+
+            connectToPC: function() {
+                const targetId = document.getElementById('target-id').value;
+                if(!targetId) return alert("Please paste the PC's ID first!");
+                this.peer.call(targetId, this.localStream);
+                this.launchUI();
+            },
+
+            launchUI: function() {
                 document.getElementById('setup-screen').style.display = 'none';
                 document.getElementById('main-ui').style.display = 'flex';
                 this.initMaps();
@@ -100,28 +105,20 @@
 
             initMaps: function() {
                 const pos = { lat: 40.758, lng: -73.985 };
-                const map = new google.maps.Map(document.getElementById('map-canvas'), { center: pos, zoom: 17 });
+                const map = new google.maps.Map(document.getElementById('map-canvas'), { center: pos, zoom: 17, disableDefaultUI: true });
                 const pano = new google.maps.StreetViewPanorama(document.getElementById('pano'), { position: pos, addressControl: false });
                 map.setStreetView(pano);
             },
 
-            startBroadcast: function() {
-                const targetId = document.getElementById('target-id').value;
-                if(!targetId) return alert("Please paste an ID");
-                this.peer.call(targetId, this.localStream);
-            },
-
             forcePlay: function() {
                 const v = document.getElementById('view');
-                v.muted = false;
-                v.play();
+                v.muted = false; v.play();
                 document.getElementById('unmute-overlay').style.display = 'none';
             }
         };
 
-        // Peer Logic
         App.peer.on('open', id => {
-            document.getElementById('id-display').innerText = "ID: " + id;
+            document.getElementById('id-display').innerText = "MY ID: " + id;
         });
 
         App.peer.on('call', call => {
