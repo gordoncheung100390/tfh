@@ -3,74 +3,64 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OMNISYNC 4.1.1 | STABLE</title>
-    
+    <title>OMNISYNC 4.1.2 | DEBUG MODE</title>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs&libraries=places"></script>
-
     <style>
         :root { --accent: #007bff; --bg: #111; }
         body { font-family: sans-serif; background: var(--bg); color: #fff; margin: 0; overflow: hidden; height: 100dvh; display: flex; flex-direction: column; }
-        
         #setup-screen { position: fixed; inset: 0; background: #222; z-index: 2000; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px; }
-        button { padding: 15px 25px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin: 10px; transition: 0.2s; }
-        button:active { transform: scale(0.95); }
+        button { padding: 15px 25px; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; margin: 10px; }
         .btn-phone { background: var(--accent); color: white; width: 220px; }
         .btn-pc { background: #6c757d; color: white; width: 220px; }
-
         #main-ui { display: none; flex: 1; flex-direction: column; height: 100%; }
         #view-top { flex: 1.2; position: relative; background: #000; }
         #view-bottom { flex: 0.8; background: #1a1a1a; border-top: 2px solid #000; }
-
         #video-container { position: absolute; top: 10px; left: 10px; width: 140px; aspect-ratio: 16/9; background: #000; border-radius: 8px; border: 2px solid var(--accent); z-index: 1000; overflow: hidden; }
         video { width: 100%; height: 100%; object-fit: cover; }
-        #unmute-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.8); display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 1100; }
-        #status-bar { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.7); padding: 5px 10px; border-radius: 5px; font-size: 11px; z-index: 1000; pointer-events: none; }
+        #status-bar { position: absolute; top: 10px; right: 10px; background: rgba(255,0,0,0.8); padding: 5px 10px; border-radius: 5px; font-size: 11px; z-index: 1000; }
     </style>
 </head>
 <body>
 
     <div id="setup-screen">
-        <h2 style="color:var(--accent)">OMNISYNC 4.1.1</h2>
+        <h2 style="color:var(--accent)">OMNISYNC 4.1.2</h2>
         <div id="role-selection">
             <button class="btn-phone" onclick="App.startAsPhone()">I am the PHONE</button>
             <button class="btn-pc" onclick="App.startAsPC()">I am the PC</button>
         </div>
-        <div id="loading-msg" style="display:none; margin-top:20px;">Accessing Camera & Connecting...</div>
+        <div id="debug-log" style="color:#888; font-size: 12px; margin-top:20px;">Ready.</div>
     </div>
 
     <div id="main-ui">
         <div id="view-top">
-            <div id="status-bar">Initializing...</div>
-            <div id="video-container">
-                <div id="unmute-overlay">
-                    <button onclick="App.forcePlay()" style="background: #ffc107; color: #000; padding:8px 12px; font-size:12px; border-radius: 5px;">UNMUTE STREAM</button>
-                </div>
-                <video id="view" autoplay playsinline></video>
-            </div>
+            <div id="status-bar">Waiting...</div>
+            <div id="video-container"><video id="view" autoplay playsinline muted></video></div>
             <div id="pano" style="width:100%; height:100%;"></div>
         </div>
-        <div id="view-bottom">
-            <div id="map-canvas" style="width:100%; height:100%;"></div>
-        </div>
+        <div id="view-bottom"><div id="map-canvas" style="width:100%; height:100%;"></div></div>
     </div>
 
     <script>
+        const log = (msg) => { document.getElementById('debug-log').innerText = msg; console.log(msg); };
+
         const App = {
             role: '',
-            localStream: null,
             db: null,
-            roomName: "TOUR_1", // Hardcoded for bulletproof testing
+            room: "TOUR_1",
+            // Added secure:true and specified port 443 for cloud server
             peer: new Peer({ 
+                host: '0.peerjs.com', 
+                port: 443, 
+                secure: true,
                 config: { 'iceServers': [{ url: 'stun:stun1.l.google.com:19302' }] } 
             }),
 
             initFirebase: function() {
-                const config = {
-                    databaseURL: "https://virtual-tour-platform-492518-default-rtdb.firebaseio.com"
-                };
+                log("Connecting to Firebase...");
+                const config = { databaseURL: "https://virtual-tour-platform-492518-default-rtdb.firebaseio.com" };
                 if (!firebase.apps.length) firebase.initializeApp(config);
                 this.db = firebase.database();
             },
@@ -78,47 +68,39 @@
             startAsPhone: async function() {
                 this.role = 'sender';
                 this.initFirebase();
-                document.getElementById('role-selection').style.display = 'none';
-                document.getElementById('loading-msg').style.display = 'block';
-
+                log("Requesting Camera...");
                 try {
-                    // Optimized resolution to prevent phone overheating
                     this.localStream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { width: 640, height: 480, facingMode: "environment" }, 
-                        audio: true 
+                        video: { width: 640, height: 480, facingMode: "environment" }, audio: true 
                     });
                     document.getElementById('view').srcObject = this.localStream;
-                    document.getElementById('view').muted = true;
-
-                    // Listen for the PC's ID in Firebase for Auto-Connect
-                    this.db.ref("rooms/" + this.roomName + "/pc_id").on("value", snap => {
-                        const pcId = snap.val();
-                        if (pcId) {
-                            console.log("PC Found! Calling ID:", pcId);
-                            this.peer.call(pcId, this.localStream);
+                    
+                    log("Watching for PC ID...");
+                    this.db.ref("rooms/" + this.room + "/pc_id").on("value", snap => {
+                        const id = snap.val();
+                        if (id) {
+                            log("PC Found! Calling...");
+                            this.peer.call(id, this.localStream);
                         }
                     });
-
-                    this.launchUI();
-                } catch (e) { 
-                    alert("Camera Permission Denied or Hardware Busy. Please refresh."); 
-                }
+                    this.launch();
+                } catch (e) { log("Error: " + e.message); }
             },
 
             startAsPC: function() {
                 this.role = 'receiver';
                 this.initFirebase();
+                log("Registering PC on Network...");
                 
                 this.peer.on('open', id => {
-                    // Save the PC ID to the cloud so the phone sees it immediately
-                    this.db.ref("rooms/" + this.roomName + "/pc_id").set(id);
-                    document.getElementById('status-bar').innerText = "PC ONLINE | WAITING FOR PHONE";
+                    log("PC Registered! ID: " + id);
+                    this.db.ref("rooms/" + this.room + "/pc_id").set(id);
+                    document.getElementById('status-bar').innerText = "PC READY: " + id;
                 });
-
-                this.launchUI();
+                this.launch();
             },
 
-            launchUI: function() {
+            launch: function() {
                 document.getElementById('setup-screen').style.display = 'none';
                 document.getElementById('main-ui').style.display = 'flex';
                 this.initMaps();
@@ -126,33 +108,22 @@
 
             initMaps: function() {
                 const pos = { lat: 40.758, lng: -73.985 };
-                const map = new google.maps.Map(document.getElementById('map-canvas'), { 
-                    center: pos, zoom: 17, disableDefaultUI: true 
-                });
-                const pano = new google.maps.StreetViewPanorama(document.getElementById('pano'), { 
-                    position: pos, addressControl: false 
-                });
+                const map = new google.maps.Map(document.getElementById('map-canvas'), { center: pos, zoom: 17, disableDefaultUI: true });
+                const pano = new google.maps.StreetViewPanorama(document.getElementById('pano'), { position: pos, addressControl: false });
                 map.setStreetView(pano);
-            },
-
-            forcePlay: function() {
-                const v = document.getElementById('view');
-                v.muted = false; 
-                v.play();
-                document.getElementById('unmute-overlay').style.display = 'none';
             }
         };
 
-        // Global Call Listener (Required for the PC to accept the call)
         App.peer.on('call', call => {
             call.answer();
-            call.on('stream', remoteStream => {
-                const v = document.getElementById('view');
-                v.srcObject = remoteStream;
-                document.getElementById('unmute-overlay').style.display = 'flex';
-                document.getElementById('status-bar').innerText = "LIVE STREAM ACTIVE";
+            call.on('stream', s => {
+                document.getElementById('view').srcObject = s;
+                document.getElementById('view').muted = false;
+                document.getElementById('status-bar').innerText = "LIVE ACTIVE";
             });
         });
+
+        App.peer.on('error', e => { log("Network Error: " + e.type); });
     </script>
 </body>
 </html>
