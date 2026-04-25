@@ -1,84 +1,107 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>SIMPLE BROADCAST</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BROADCAST 5.1 | BYPASS</title>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" crossorigin="anonymous"></script>
     <style>
-        body { background: #000; color: #fff; font-family: sans-serif; text-align: center; margin: 0; padding: 20px; }
-        video { width: 100%; max-width: 600px; background: #222; border-radius: 10px; margin-top: 20px; }
-        button { padding: 20px; width: 100%; max-width: 300px; font-size: 18px; margin: 10px; cursor: pointer; border-radius: 10px; border: none; }
-        #status { color: #0f0; font-family: monospace; margin: 20px; }
+        body { background: #111; color: #fff; font-family: sans-serif; text-align: center; margin: 0; padding: 20px; }
+        #video-wrapper { position: relative; width: 100%; max-width: 500px; margin: 20px auto; aspect-ratio: 16/9; background: #000; border: 2px solid #333; border-radius: 12px; overflow: hidden; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        button { padding: 18px; width: 100%; max-width: 280px; font-size: 16px; margin: 10px; cursor: pointer; border-radius: 10px; border: none; font-weight: bold; }
+        #status { font-family: monospace; color: #0f0; margin: 15px; font-size: 13px; min-height: 1.2em; }
     </style>
 </head>
 <body>
 
-    <div id="setup">
-        <h2>BROADCAST v5.0</h2>
-        <button style="background:#444; color:#fff;" onclick="startPC()">PC: RECEIVE</button>
-        <button style="background:#007bff; color:#fff;" onclick="startPhone()">PHONE: SEND</button>
+    <div id="ui-initial">
+        <h2>BROADCAST 5.1</h2>
+        <button style="background:#007bff; color:#fff;" onclick="init('sender')">PHONE: START BROADCAST</button>
+        <button style="background:#444; color:#fff;" onclick="init('receiver')">PC: RECEIVE VIDEO</button>
     </div>
 
-    <div id="status">Waiting...</div>
-    <video id="remoteVideo" autoplay playsinline></video>
+    <div id="status">Waiting for user...</div>
+
+    <div id="video-wrapper">
+        <video id="v" autoplay playsinline muted></video>
+    </div>
 
     <script>
+        const status = document.getElementById('status');
+        const video = document.getElementById('v');
+        const PC_ID = 'omni-secure-channel-2026'; 
         let peer;
-        const statusEl = document.getElementById('status');
-        const videoEl = document.getElementById('remoteVideo');
 
-        // This is a fixed ID so the phone always knows exactly who to call
-        const PC_ID = 'omni-broadcast-test-123'; 
+        async function init(role) {
+            document.getElementById('ui-initial').style.display = 'none';
+            status.innerText = "Configuring Security Bypass...";
 
-        function startPC() {
-            document.getElementById('setup').style.display = 'none';
-            statusEl.innerText = "Initializing PC...";
-
-            peer = new Peer(PC_ID, { secure: true });
-
-            peer.on('open', (id) => {
-                statusEl.innerText = "READY: Waiting for phone to call...";
+            // Initialize PeerJS with a specific config to avoid storage tracking errors
+            peer = new Peer(role === 'receiver' ? PC_ID : undefined, {
+                debug: 2,
+                secure: true,
+                config: {
+                    'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }]
+                }
             });
 
-            peer.on('call', (call) => {
-                statusEl.innerText = "INCOMING CALL! Connecting...";
-                call.answer(); 
-                call.on('stream', (stream) => {
-                    videoEl.srcObject = stream;
-                    statusEl.innerText = "LIVE BROADCAST ACTIVE";
-                });
+            peer.on('open', (id) => {
+                if (role === 'receiver') {
+                    status.innerText = "PC READY: Waiting for phone...";
+                } else {
+                    startPhoneStream();
+                }
             });
 
             peer.on('error', (err) => {
-                statusEl.innerText = "Error: " + err.type;
-                if(err.type === 'unavailable-id') alert("Someone else is using this ID. Please refresh.");
+                console.error(err);
+                status.style.color = '#ff4444';
+                status.innerText = "Network Error: " + err.type;
+                if(err.type === 'unavailable-id') alert("Channel busy. Refresh PC and try again.");
+            });
+
+            // PC Receiver Logic
+            peer.on('call', (call) => {
+                status.innerText = "CONNECTED! Receiving pixels...";
+                call.answer();
+                call.on('stream', (remoteStream) => {
+                    video.srcObject = remoteStream;
+                    video.muted = false; // PC hears the audio
+                    video.play();
+                });
             });
         }
 
-        async function startPhone() {
-            document.getElementById('setup').style.display = 'none';
-            statusEl.innerText = "Starting Camera...";
-
-            peer = new Peer({ secure: true });
-
+        async function startPhoneStream() {
+            status.innerText = "Accessing Camera...";
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
                     video: { facingMode: "environment" }, 
                     audio: true 
                 });
-                videoEl.srcObject = stream;
-                videoEl.muted = true; // Don't hear yourself on the phone
                 
-                statusEl.innerText = "Calling PC...";
+                // Show local camera on phone so you know it's working
+                video.srcObject = stream;
+                status.innerText = "Connecting to PC...";
+
                 const call = peer.call(PC_ID, stream);
                 
                 call.on('error', (err) => {
-                    statusEl.innerText = "Call failed. Is the PC ready?";
+                    status.innerText = "Handshake failed. Refresh PC.";
                 });
             } catch (e) {
-                statusEl.innerText = "Camera Error: " + e.message;
+                status.innerText = "Hardware Blocked: " + e.message;
             }
         }
+
+        // Global Unmute for PC
+        document.addEventListener('click', () => {
+            if(video.srcObject) {
+                video.muted = false;
+                status.innerText = "LIVE STREAM ACTIVE (AUDIO ON)";
+            }
+        });
     </script>
 </body>
 </html>
