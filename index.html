@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OMNISYNC | V3.11 STABLE</title>
+    <title>OMNISYNC | V3.12 STABLE</title>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs&libraries=places"></script>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js"></script>
     
     <style>
         :root { --accent: #00d2ff; --bg: #0a0a0a; --panel: #1a1a1a; }
@@ -36,14 +36,14 @@
 
     <div id="gatekeeper">
         <div class="gate-card">
-            <h2>OMNISYNC 3.11</h2>
+            <h2 style="margin-top:0;">OMNISYNC 3.12</h2>
             <input type="text" id="room-input" placeholder="Room Code">
             <input type="text" id="username-input" placeholder="Your Name">
             <div style="display:flex; gap:10px; margin: 15px 0;">
                 <button id="btn-t" onclick="App.setRole('tourist')" style="flex:1">TOURIST</button>
                 <button id="btn-g" onclick="App.setRole('guide')" style="flex:1; background:#222; color:#888;">GUIDE</button>
             </div>
-            <button onclick="App.launch()" style="width:100%; background: var(--accent); padding:15px;">START</button>
+            <button onclick="App.launch()" style="width:100%; background: var(--accent); padding:15px; font-size: 16px;">START</button>
         </div>
     </div>
 
@@ -51,9 +51,9 @@
         <div id="view-3d">
             <div id="video-container">
                 <div id="unmute-overlay">
-                    <button onclick="App.studio.forcePlay()" style="background:var(--accent); padding:10px;">WATCH LIVE</button>
+                    <button onclick="App.studio.forcePlay()" style="background:var(--accent); padding:10px 20px; border-radius:30px;">WATCH LIVE</button>
                 </div>
-                <video id="view" autoplay playsinline></video>
+                <video id="view" autoplay playsinline muted></video>
             </div>
             <div id="search-container"><input id="pac-input" type="text" placeholder="Search..."></div>
             <div id="roster-panel"><div id="user-list"></div></div>
@@ -84,15 +84,6 @@
                     document.getElementById('tether-btn').style.display = 'none';
                 }
                 App.postOffice.init(); App.eyes.init(); App.studio.init();
-            },
-            brain: {
-                toggleTether: function() {
-                    App.state.isTethered = !App.state.isTethered;
-                    const btn = document.getElementById('tether-btn');
-                    btn.innerText = App.state.isTethered ? "Tethered" : "Roaming";
-                    btn.className = App.state.isTethered ? "" : "active";
-                    if(App.state.isTethered) { App.postOffice.db.ref("rooms/"+App.state.room+"/guide").once("value", s => { if(s.val()) App.postOffice.applyMove(s.val()); }); }
-                }
             }
         };
 
@@ -103,12 +94,6 @@
                 this.map = new google.maps.Map(document.getElementById('view-2d'), { center: center, zoom: 17, streetViewControl: true, mapTypeControl: false, zoomControl: false });
                 this.panorama = new google.maps.StreetViewPanorama(document.getElementById('view-3d'), { position: center, addressControl: false });
                 this.map.setStreetView(this.panorama);
-                if(App.state.role === 'guide') {
-                    const search = new google.maps.places.Autocomplete(document.getElementById("pac-input"));
-                    search.addListener("place_changed", () => {
-                        const p = search.getPlace(); if(p.geometry) { this.panorama.setPosition(p.geometry.location); this.map.setCenter(p.geometry.location); }
-                    });
-                }
                 const report = () => {
                     const p = this.panorama.getPosition(); const v = this.panorama.getPov(); if(!p) return;
                     this.map.setCenter(p);
@@ -128,7 +113,6 @@
                         });
                     }
                 });
-                Object.keys(this.markers).forEach(mid => { if(!users[mid]) { this.markers[mid].setMap(null); delete this.markers[mid]; } });
             }
         };
 
@@ -139,17 +123,26 @@
                 if (!firebase.apps.length) firebase.initializeApp(config);
                 this.db = firebase.database();
                 this.db.ref("rooms/"+App.state.room+"/users/"+App.state.id).onDisconnect().remove();
-                if(App.state.role === 'guide') this.db.ref("rooms/"+App.state.room+"/stream").onDisconnect().remove();
 
-                if(App.state.role === 'tourist') {
-                    this.db.ref("rooms/"+App.state.room+"/guide").on("value", s => { if(s.val() && App.state.isTethered) this.applyMove(s.val()); });
+                if(App.state.role === 'guide') {
+                    // GUIDE: Watch for "pokes" from tourists and call them
+                    this.db.ref("rooms/"+App.state.room+"/pokes").on("child_added", (snap) => {
+                        const touristId = snap.val().id;
+                        if(App.studio.mystream) {
+                            console.log("Detected Poke! Pushing stream to:", touristId);
+                            App.studio.peer.call("ID-" + touristId, App.studio.mystream);
+                        }
+                        snap.ref.remove(); // Clear poke after handling
+                    });
+                } else {
+                    // TOURIST: Tether logic
+                    this.db.ref("rooms/"+App.state.room+"/guide").on("value", s => { if(s.val() && App.state.isTethered) App.postOffice.applyMove(s.val()); });
                     
-                    // TOURIST: Watch for stream and "PULL" it
+                    // TOURIST: Watch for stream active flag and send a "Poke"
                     this.db.ref("rooms/"+App.state.room+"/stream").on("value", s => {
-                        const data = s.val();
-                        if(data && data.active) {
-                            console.log("Guide is Live. Pulling stream...");
-                            setTimeout(() => { App.studio.pullStream(data.guidePeerId); }, 1500);
+                        if(s.val() && s.val().active) {
+                            console.log("Guide is active. Sending Poke...");
+                            this.db.ref("rooms/"+App.state.room+"/pokes").push({ id: App.state.id });
                         }
                     });
                 }
@@ -169,26 +162,19 @@
         };
 
         App.studio = {
-            peer: null,
-            mystream: null,
+            peer: null, mystream: null,
             init: function() {
-                // GUIDE gets a fixed name, TOURISTS get unique names
-                const pid = App.state.role === 'guide' ? "G-" + App.state.room : "T-" + App.state.id;
-                this.peer = new Peer(pid, { debug: 1 });
+                // Using "ID-" prefix to avoid simple number-only ID issues
+                this.peer = new Peer("ID-" + App.state.id, { debug: 1 });
                 
                 this.peer.on('call', call => {
-                    if(App.state.role === 'guide' && this.mystream) {
-                        console.log("Answering tourist pull request...");
-                        call.answer(this.mystream);
-                    } else {
-                        console.log("Receiving guide stream push...");
-                        call.answer();
-                        call.on('stream', s => {
-                            const v = document.getElementById('view');
-                            v.srcObject = s;
-                            document.getElementById('unmute-overlay').style.display = 'flex';
-                        });
-                    }
+                    console.log("Incoming call received!");
+                    call.answer();
+                    call.on('stream', s => {
+                        const v = document.getElementById('view');
+                        v.srcObject = s;
+                        document.getElementById('unmute-overlay').style.display = 'flex';
+                    });
                 });
             },
             startBroadcast: async function() {
@@ -197,22 +183,22 @@
                     this.mystream = s;
                     document.getElementById('view').srcObject = s;
                     document.getElementById('view').muted = true;
-
-                    // Update Firebase so tourists know WHERE to pull from
-                    App.postOffice.db.ref("rooms/"+App.state.room+"/stream").set({
-                        active: true, guidePeerId: "G-" + App.state.room, ts: Date.now()
-                    });
-                    alert("LIVE. Tourists are now pulling your feed.");
-                } catch (e) { alert("Cam Error: " + e.message); }
-            },
-            pullStream: function(targetId) {
-                // Tourists call the guide with an empty stream to trigger the answer
-                console.log("Pulling from:", targetId);
-                this.peer.call(targetId, new MediaStream());
+                    App.postOffice.db.ref("rooms/"+App.state.room+"/stream").set({ active: true, ts: Date.now() });
+                    alert("LIVE. Tourists notified.");
+                } catch (e) { alert("Camera failed: " + e.message); }
             },
             forcePlay: function() {
                 const v = document.getElementById('view'); v.muted = false; v.play();
                 document.getElementById('unmute-overlay').style.display = 'none';
+            }
+        };
+
+        App.brain = {
+            toggleTether: function() {
+                App.state.isTethered = !App.state.isTethered;
+                const btn = document.getElementById('tether-btn');
+                btn.innerText = App.state.isTethered ? "Tethered" : "Roaming";
+                btn.className = App.state.isTethered ? "" : "active";
             }
         };
     </script>
