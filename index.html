@@ -1,88 +1,128 @@
-<script>
-    const PC_ID = 'omni-ultra-stable-2026';
-    let peer;
-    const video = document.getElementById('v');
-    const status = document.getElementById('status');
+<!DOCTYPE html>
+<html>
+<head>
+    <title>BROADCAST 5.4 | INSTANT 5G</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" crossorigin="anonymous"></script>
+    <style>
+        body { background: #000; color: #fff; font-family: -apple-system, sans-serif; text-align: center; margin: 0; padding: 20px; overflow: hidden; }
+        #video-container { width: 100%; max-width: 500px; aspect-ratio: 16/9; background: #1a1a1a; margin: 10px auto; border-radius: 15px; overflow: hidden; border: 2px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        button { padding: 20px; width: 100%; max-width: 300px; font-size: 18px; margin: 10px; cursor: pointer; border: none; border-radius: 12px; font-weight: bold; transition: transform 0.1s; }
+        button:active { transform: scale(0.95); }
+        #status { color: #00ff00; margin: 15px; font-family: monospace; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; }
+    </style>
+</head>
+<body>
 
-    function start(role) {
-        document.getElementById('ui').style.display = 'none';
-        status.innerText = "Fast-tracking connection...";
+    <div id="ui">
+        <h2 style="margin-bottom:5px;">OMNISYNC v5.4</h2>
+        <p style="color:#777; font-size:12px; margin-bottom:20px;">Optimized for 5G Latency</p>
+        <button style="background:#007bff; color:#fff;" onclick="start('sender')">PHONE: SEND</button>
+        <button style="background:#333; color:#fff;" onclick="start('receiver')">PC: RECEIVE</button>
+    </div>
 
-        // Use multiple STUN servers to speed up the 'lookup' phase on 5G
-        const config = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { urls: 'stun:stun1.l.google.com:19302' },
-                { urls: 'stun:stun2.l.google.com:19302' },
-                { urls: 'stun:stun3.l.google.com:19302' }
-            ],
-            iceCandidatePoolSize: 10 // Pre-gather paths to save time
-        };
+    <div id="status">Ready for Connection</div>
+    
+    <div id="video-container">
+        <video id="v" autoplay playsinline muted></video>
+    </div>
 
-        peer = new Peer(role === 'receiver' ? PC_ID : undefined, {
-            config: config,
-            secure: true,
-            debug: 1 // Lower debug level for better performance
-        });
+    <script>
+        const PC_ID = 'omni-ultra-fast-2026'; // Unique ID for this version
+        let peer;
+        const video = document.getElementById('v');
+        const status = document.getElementById('status');
 
-        peer.on('open', (id) => {
-            if(role === 'receiver') {
-                status.innerText = "PC READY: Awaiting 5G...";
-            } else {
-                sendVideo();
+        function start(role) {
+            document.getElementById('ui').style.display = 'none';
+            status.innerText = "Gathering Network Paths...";
+
+            // Pre-configured STUN servers to bypass 5G carrier blocks faster
+            const config = {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:stun3.l.google.com:19302' }
+                ],
+                iceCandidatePoolSize: 10 // Pre-fetch candidates for instant handshake
+            };
+
+            peer = new Peer(role === 'receiver' ? PC_ID : undefined, {
+                config: config,
+                secure: true,
+                debug: 1 
+            });
+
+            peer.on('open', (id) => {
+                if(role === 'receiver') {
+                    status.innerText = "PC READY: Waiting for 5G signal...";
+                } else {
+                    sendVideo(role);
+                }
+            });
+
+            peer.on('call', (call) => {
+                status.innerText = "Signal found! Handshaking...";
+                call.answer();
+                
+                call.on('stream', (s) => {
+                    if (video.srcObject !== s) {
+                        video.srcObject = s;
+                        video.muted = true; // Essential for autoplay
+                        video.play().catch(e => console.log("User interaction required"));
+                        status.innerText = "LIVE: CLICK SCREEN TO UNMUTE";
+                    }
+                });
+            });
+
+            peer.on('error', (err) => {
+                status.innerText = "Error: " + err.type;
+                console.error(err);
+                if(err.type === 'unavailable-id') setTimeout(() => location.reload(), 1000); 
+            });
+        }
+
+        async function sendVideo(role) {
+            try {
+                // Lowering resolution slightly to 480p for instant 5G upload
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: "environment",
+                        width: { ideal: 640 },
+                        height: { ideal: 360 },
+                        frameRate: { ideal: 24 }
+                    }, 
+                    audio: true 
+                });
+                
+                video.srcObject = stream;
+                video.muted = true;
+                video.play();
+                
+                status.innerText = "Broadcasting... Finding PC...";
+                const call = peer.call(PC_ID, stream);
+
+                // If no connection in 10s, hint at the Wi-Fi/5G issue
+                setTimeout(() => {
+                    if(status.innerText.includes("Broadcasting")) {
+                        status.innerText = "5G Tunneling... Stand by.";
+                    }
+                }, 10000);
+
+            } catch (e) {
+                status.innerText = "Hardware Error: " + e.message;
+            }
+        }
+
+        // Global click handler to unlock Audio on PC
+        document.addEventListener('click', () => {
+            if(video.srcObject) {
+                video.muted = false;
+                status.innerText = "LIVE: AUDIO ON";
             }
         });
-
-        peer.on('call', (call) => {
-            status.innerText = "Signal found! Linking...";
-            call.answer();
-            
-            // Timeout if stream doesn't start in 5 seconds
-            const connectTimeout = setTimeout(() => {
-                if (!video.srcObject) status.innerText = "Slow network... still trying.";
-            }, 5000);
-
-            call.on('stream', (s) => {
-                clearTimeout(connectTimeout);
-                if (video.srcObject !== s) {
-                    video.srcObject = s;
-                    video.muted = true; 
-                    video.play();
-                    status.innerText = "LIVE: CLICK TO UNMUTE";
-                }
-            });
-        });
-    }
-
-    async function sendVideo() {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment", width: { ideal: 640 } }, 
-                audio: true 
-            });
-            video.srcObject = stream;
-            video.muted = true;
-            video.play();
-            
-            status.innerText = "Broadcasting from 5G...";
-            const call = peer.call(PC_ID, stream);
-
-            // FORCE RESTART if 5G hangs
-            setTimeout(() => {
-                if (peer && !peer.destroyed && role === 'sender') {
-                    console.log("Refreshing ICE candidates...");
-                }
-            }, 3000);
-
-        } catch (e) {
-            status.innerText = "Camera Error: " + e.message;
-        }
-    }
-
-    document.addEventListener('click', () => {
-        if(video.srcObject) {
-            video.muted = false;
-            status.innerText = "LIVE (AUDIO ACTIVE)";
-        }
-    });
-</script>
+    </script>
+</body>
+</html>
