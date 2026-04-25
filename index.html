@@ -1,84 +1,102 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>BROADCAST 5.2 | 5G BRIDGE</title>
+    <title>BROADCAST 5.3 | STABLE</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" crossorigin="anonymous"></script>
     <style>
-        body { background: #000; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; }
-        video { width: 100%; max-width: 500px; background: #222; border-radius: 10px; margin-top: 20px; }
-        button { padding: 20px; width: 100%; max-width: 300px; font-size: 18px; margin: 10px; cursor: pointer; border: none; border-radius: 10px; }
-        #status { color: #0f0; margin: 20px; font-family: monospace; }
+        body { background: #000; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; margin: 0; }
+        #video-container { width: 100%; max-width: 500px; aspect-ratio: 16/9; background: #222; margin: 20px auto; border-radius: 12px; overflow: hidden; border: 2px solid #333; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        button { padding: 20px; width: 100%; max-width: 300px; font-size: 18px; margin: 10px; cursor: pointer; border: none; border-radius: 10px; font-weight: bold; }
+        #status { color: #0f0; margin: 20px; font-family: monospace; font-size: 14px; }
     </style>
 </head>
 <body>
 
     <div id="ui">
-        <h2>5G TO PC BRIDGE</h2>
-        <button style="background:#007bff; color:#fff;" onclick="start('sender')">PHONE: SEND (5G)</button>
-        <button style="background:#444; color:#fff;" onclick="start('receiver')">PC: RECEIVE (Wi-Fi)</button>
+        <h2>BROADCAST 5.3</h2>
+        <button style="background:#007bff; color:#fff;" onclick="start('sender')">PHONE: SEND</button>
+        <button style="background:#444; color:#fff;" onclick="start('receiver')">PC: RECEIVE</button>
     </div>
 
-    <div id="status">Waiting...</div>
-    <video id="v" autoplay playsinline muted></video>
+    <div id="status">Ready.</div>
+    
+    <div id="video-container">
+        <video id="v" autoplay playsinline muted></video>
+    </div>
 
     <script>
-        const PC_ID = 'omni-5g-bridge-2026';
+        const PC_ID = 'omni-stable-bridge-2026';
         let peer;
+        const video = document.getElementById('v');
+        const status = document.getElementById('status');
 
         function start(role) {
             document.getElementById('ui').style.display = 'none';
-            document.getElementById('status').innerText = "Opening Relay Tunnel...";
-
-            // These STUN servers help 5G find your home Wi-Fi IP
-            const config = {
-                'iceServers': [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' },
-                    { urls: 'stun:stun2.l.google.com:19302' }
-                ]
-            };
+            status.innerText = "Initializing Network...";
 
             peer = new Peer(role === 'receiver' ? PC_ID : undefined, {
-                config: config,
                 secure: true,
-                debug: 2
+                config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }] }
             });
 
             peer.on('open', (id) => {
                 if(role === 'receiver') {
-                    document.getElementById('status').innerText = "PC READY: Waiting for 5G signal...";
+                    status.innerText = "PC READY: Waiting for connection...";
                 } else {
                     sendVideo();
                 }
             });
 
             peer.on('call', (call) => {
-                document.getElementById('status').innerText = "5G Signal Found! Connecting...";
+                status.innerText = "Incoming Stream...";
                 call.answer();
+                
                 call.on('stream', (s) => {
-                    const video = document.getElementById('v');
-                    video.srcObject = s;
-                    video.muted = false;
-                    video.play();
-                    document.getElementById('status').innerText = "LIVE FROM 5G";
+                    // FIX: Only load the stream if it's not already there
+                    if (video.srcObject !== s) {
+                        status.innerText = "LIVE: CLICK TO UNMUTE";
+                        video.srcObject = s;
+                        // Muted by default to prevent the AbortError/Autoplay block
+                        video.muted = true; 
+                        video.play().catch(e => console.log("Playback pending click..."));
+                    }
                 });
+            });
+
+            peer.on('error', (err) => {
+                status.innerText = "Error: " + err.type;
+                if(err.type === 'unavailable-id') location.reload(); 
             });
         }
 
         async function sendVideo() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: true });
-                document.getElementById('v').srcObject = stream;
-                document.getElementById('status').innerText = "Broadcasting on 5G...";
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment" }, 
+                    audio: true 
+                });
+                
+                // PHONE PREVIEW: Always muted to prevent feedback loop
+                video.srcObject = stream;
+                video.muted = true; 
+                video.play();
+                
+                status.innerText = "Broadcasting...";
                 peer.call(PC_ID, stream);
             } catch (e) {
-                alert("Camera error: " + e.message);
+                status.innerText = "Camera Error: " + e.message;
             }
         }
 
-        // Essential for PC Audio
-        document.addEventListener('click', () => { document.getElementById('v').muted = false; });
+        // PC Audio Unlock
+        document.addEventListener('click', () => {
+            if(video.srcObject) {
+                video.muted = false;
+                status.innerText = "LIVE (AUDIO ACTIVE)";
+            }
+        });
     </script>
 </body>
 </html>
