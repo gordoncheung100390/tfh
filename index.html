@@ -1,94 +1,128 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>OMNISYNC 16 | GEMINI LIVE BRIDGE</title>
+    <title>OMNISYNC 17 | GOOGLE CLOUD RELAY</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { background: #000; color: #fff; font-family: sans-serif; text-align: center; }
-        .setup-card { background: #111; padding: 20px; border-radius: 15px; max-width: 400px; margin: 50px auto; border: 1px solid #333; }
-        input { padding: 12px; width: 80%; margin: 10px 0; border-radius: 8px; border: none; }
-        button { padding: 15px; width: 85%; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; background: #007bff; color: white; }
-        #v { width: 100%; max-width: 600px; display: none; border: 2px solid #007bff; margin-top: 20px; }
+        body { background: #000; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; margin: 0; }
+        .card { background: #111; padding: 25px; border-radius: 20px; border: 1px solid #333; max-width: 350px; margin: 20px auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        input { padding: 15px; width: 85%; margin: 10px 0; border-radius: 10px; border: 1px solid #444; background: #000; color: #fff; text-align: center; font-size: 18px; }
+        button { padding: 15px; width: 95%; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; margin: 8px 0; transition: 0.2s; }
+        .btn-pc { background: #333; color: #fff; }
+        .btn-phone { background: #007bff; color: #fff; }
+        #v-container { width: 100%; max-width: 500px; aspect-ratio: 16/9; background: #000; margin: 20px auto; border-radius: 15px; overflow: hidden; border: 2px solid #007bff; display: none; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        #status { font-size: 12px; color: #666; margin-top: 15px; text-transform: uppercase; letter-spacing: 1px; }
     </style>
 </head>
 <body>
 
-    <div id="setup" class="setup-card">
-        <h2>GEMINI 5G PUNCH</h2>
-        <input type="text" id="api-key" placeholder="Paste Gemini API Key Here">
-        <input type="text" id="session-id" placeholder="Create a Room Name (e.g. MyRoom123)">
-        <p style="font-size:11px; color:#666;">This uses Google's AI Studio Bridge to bypass 5G blocks.</p>
-        <button onclick="startLive()">INITIALIZE BRIDGE</button>
+    <div id="setup" class="card">
+        <h2 style="margin: 0 0 10px 0;">OMNISYNC 17</h2>
+        <p style="font-size: 12px; color: #888;">GOOGLE CLOUD HANDSHAKE</p>
+        
+        <input type="text" id="room-id" placeholder="Room Name (e.g. apple123)">
+        
+        <div id="selector">
+            <button class="btn-pc" onclick="startSession('PC')">PC: RECEIVE VIDEO</button>
+            <button class="btn-phone" onclick="startSession('PHONE')">PHONE: SEND VIDEO</button>
+        </div>
+        
+        <div id="status">Ready</div>
     </div>
 
-    <video id="v" autoplay playsinline></video>
-    <div id="status" style="margin-top:10px; color:#007bff;">Ready</div>
+    <div id="v-container">
+        <video id="v" autoplay playsinline muted></video>
+        <button id="unmute-btn" onclick="unmute()" style="width: auto; padding: 10px 20px; margin-top: 10px; background: #222; color: #fff; border: 1px solid #444;">TAP FOR AUDIO</button>
+    </div>
 
     <script>
-        let ws;
+        // --- PASTE YOUR FIREBASE CONFIG FROM SETTINGS HERE ---
+        const firebaseConfig = {
+  apiKey: "AIzaSyARIK3hr04dEDQ1lZZM5AkQvJurRwQy6Z4",
+  authDomain: "omnisync-b7a25.firebaseapp.com",
+  databaseURL: "https://omnisync-b7a25-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "omnisync-b7a25",
+  storageBucket: "omnisync-b7a25.firebasestorage.app",
+  messagingSenderId: "437732358108",
+  appId: "1:437732358108:web:ca972d637b8a7160f24119"
+};
+        // -----------------------------------------------------
+        
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        let peer;
         const video = document.getElementById('v');
+        const status = document.getElementById('status');
 
-        async function startLive() {
-            const key = document.getElementById('api-key').value;
-            const room = document.getElementById('session-id').value;
-            if(!key) return alert("API Key Required");
-
-            document.getElementById('status').innerText = "Connecting to Google Cloud...";
+        async function startSession(role) {
+            const room = document.getElementById('room-id').value.trim().toLowerCase();
+            if(!room) return alert("Please enter a room name first!");
             
-            // The Live API Endpoint (2026 Bidi-Generate Protocol)
-            const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenericService/BidiGenerateContent?key=${key}`;
+            status.innerText = "Connecting to Google Cloud...";
             
-            ws = new WebSocket(url);
-
-            ws.onopen = () => {
-                document.getElementById('status').innerText = "Bridge Open. Starting Camera...";
-                startCamera();
+            // Standard WebRTC config with Google STUN
+            const peerConfig = {
+                'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }],
+                'secure': true
             };
 
-            ws.onmessage = async (event) => {
-                // This is where the 'Mirror' happens. 
-                // We receive the processed frames back from Google.
-                const data = JSON.parse(event.data);
-                if (data.videoPayload) {
-                    // Display the "Mirrored" stream from Google
-                    displayRemoteStream(data.videoPayload);
-                }
-            };
-        }
+            // Unique ID for this session
+            peer = new Peer(role + '-' + room, peerConfig);
 
-        async function startCamera() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { width: 480, frameRate: 15 }, // Low FPS for 5G stability
-                    audio: true 
+            if (role === 'PC') {
+                peer.on('open', (id) => {
+                    status.innerText = "Waiting for Phone Signal...";
+                    // Tell Firebase the PC is ready
+                    db.ref('rooms/' + room).set({ pc_ready: true, timestamp: Date.now() });
                 });
-                video.style.display = "block";
-                video.srcObject = stream;
-                
-                // We send frames to Gemini every 1 second (1 FPS)
-                // This is how the Live API "sees" and relays the data.
-                setInterval(() => {
-                    sendFrameToGemini(video);
-                }, 1000);
 
-            } catch (e) { alert("Camera Error: " + e.message); }
+                peer.on('call', (call) => {
+                    status.innerText = "Incoming Stream!";
+                    call.answer();
+                    call.on('stream', (remoteStream) => {
+                        showVideo(remoteStream);
+                    });
+                });
+            } else {
+                // PHONE LOGIC
+                try {
+                    status.innerText = "Starting Camera...";
+                    const stream = await navigator.mediaDevices.getUserMedia({ 
+                        video: { facingMode: "environment", width: 640 }, 
+                        audio: true 
+                    });
+                    
+                    showVideo(stream);
+                    status.innerText = "Searching for PC...";
+
+                    // Listen to Firebase: When PC is ready, make the call
+                    db.ref('rooms/' + room).on('value', (snapshot) => {
+                        const data = snapshot.val();
+                        if (data && data.pc_ready) {
+                            status.innerText = "PC Detected! Punching Through...";
+                            peer.call('PC-' + room, stream);
+                        }
+                    });
+                } catch (err) {
+                    alert("Camera blocked: " + err.message);
+                }
+            }
         }
 
-        function sendFrameToGemini(vElement) {
-            const canvas = document.createElement('canvas');
-            canvas.width = vElement.videoWidth;
-            canvas.height = vElement.videoHeight;
-            canvas.getContext('2d').drawImage(vElement, 0, 0);
-            const base64Frame = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
+        function showVideo(stream) {
+            document.getElementById('setup').style.display = 'none';
+            document.getElementById('v-container').style.display = 'block';
+            video.srcObject = stream;
+            video.play();
+        }
 
-            const payload = {
-                realtime_input: {
-                    media_chunks: [{
-                        mime_type: "image/jpeg",
-                        data: base64Frame
-                    }]
-                }
-            };
-            ws.send(JSON.stringify(payload));
+        function unmute() {
+            video.muted = false;
+            document.getElementById('unmute-btn').style.display = 'none';
         }
     </script>
 </body>
