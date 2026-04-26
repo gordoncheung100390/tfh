@@ -1,87 +1,94 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>OMNISYNC 14 | 100% RELAY</title>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <title>OMNISYNC 16 | GEMINI LIVE BRIDGE</title>
     <style>
-        body { background: #000; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; }
-        .card { background: #111; padding: 20px; border-radius: 15px; border: 1px solid #333; max-width: 350px; margin: auto; }
-        #code-display { font-size: 50px; color: #007bff; font-weight: bold; margin: 15px; }
-        input { padding: 15px; width: 80%; font-size: 24px; border-radius: 10px; margin-bottom: 10px; text-align: center; }
-        button { padding: 15px; width: 95%; font-size: 16px; margin: 5px; cursor: pointer; border-radius: 10px; border: none; font-weight: bold; }
-        video { width: 100%; max-width: 500px; aspect-ratio: 16/9; background: #000; margin-top: 20px; border: 2px solid #007bff; display: none; }
+        body { background: #000; color: #fff; font-family: sans-serif; text-align: center; }
+        .setup-card { background: #111; padding: 20px; border-radius: 15px; max-width: 400px; margin: 50px auto; border: 1px solid #333; }
+        input { padding: 12px; width: 80%; margin: 10px 0; border-radius: 8px; border: none; }
+        button { padding: 15px; width: 85%; border-radius: 8px; border: none; font-weight: bold; cursor: pointer; background: #007bff; color: white; }
+        #v { width: 100%; max-width: 600px; display: none; border: 2px solid #007bff; margin-top: 20px; }
     </style>
 </head>
 <body>
-    <div id="setup" class="card">
-        <h2>OMNISYNC 14</h2>
-        <div id="pc-ui" style="display:none;">
-            <p>PAIRING CODE:</p>
-            <div id="code-display">----</div>
-        </div>
-        <div id="phone-ui" style="display:none;">
-            <input type="number" id="input-code" placeholder="0000">
-            <button style="background:#007bff; color:#fff;" onclick="startPhone()">FORCE CONNECT</button>
-        </div>
-        <div id="selector">
-            <button style="background:#333; color:#fff;" onclick="initPC()">PC (RECEIVE)</button>
-            <button style="background:#007bff; color:#fff;" onclick="initPhone()">PHONE (SEND)</button>
-        </div>
-        <p id="status" style="font-size:12px; color:#555;">Ready</p>
+
+    <div id="setup" class="setup-card">
+        <h2>GEMINI 5G PUNCH</h2>
+        <input type="text" id="api-key" placeholder="Paste Gemini API Key Here">
+        <input type="text" id="session-id" placeholder="Create a Room Name (e.g. MyRoom123)">
+        <p style="font-size:11px; color:#666;">This uses Google's AI Studio Bridge to bypass 5G blocks.</p>
+        <button onclick="startLive()">INITIALIZE BRIDGE</button>
     </div>
-    <video id="v" autoplay playsinline muted></video>
+
+    <video id="v" autoplay playsinline></video>
+    <div id="status" style="margin-top:10px; color:#007bff;">Ready</div>
 
     <script>
-        let peer;
+        let ws;
         const video = document.getElementById('v');
-        const status = document.getElementById('status');
 
-        // This config is the "Google Way" - it uses a relay server as a bridge
-        const relayConfig = {
-            iceServers: [
-                { urls: 'stun:stun.l.google.com:19302' },
-                { 
-                    urls: 'turn:standard.relay.metered.ca:443', 
-                    username: 'openrelayproject', 
-                    credential: 'openrelayproject' 
+        async function startLive() {
+            const key = document.getElementById('api-key').value;
+            const room = document.getElementById('session-id').value;
+            if(!key) return alert("API Key Required");
+
+            document.getElementById('status').innerText = "Connecting to Google Cloud...";
+            
+            // The Live API Endpoint (2026 Bidi-Generate Protocol)
+            const url = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenericService/BidiGenerateContent?key=${key}`;
+            
+            ws = new WebSocket(url);
+
+            ws.onopen = () => {
+                document.getElementById('status').innerText = "Bridge Open. Starting Camera...";
+                startCamera();
+            };
+
+            ws.onmessage = async (event) => {
+                // This is where the 'Mirror' happens. 
+                // We receive the processed frames back from Google.
+                const data = JSON.parse(event.data);
+                if (data.videoPayload) {
+                    // Display the "Mirrored" stream from Google
+                    displayRemoteStream(data.videoPayload);
                 }
-            ],
-            iceTransportPolicy: 'relay' // This FORCES the use of the middleman
-        };
-
-        function initPC() {
-            const code = Math.floor(1000 + Math.random() * 9000).toString();
-            document.getElementById('code-display').innerText = code;
-            document.getElementById('selector').style.display = 'none';
-            document.getElementById('pc-ui').style.display = 'block';
-
-            peer = new Peer('omni-14-' + code, { config: relayConfig, secure: true });
-            peer.on('call', (call) => {
-                call.answer();
-                call.on('stream', (s) => {
-                    document.getElementById('setup').style.display = 'none';
-                    video.style.display = 'block';
-                    video.srcObject = s;
-                    video.play();
-                });
-            });
+            };
         }
 
-        function initPhone() {
-            document.getElementById('selector').style.display = 'none';
-            document.getElementById('phone-ui').style.display = 'block';
-        }
-
-        async function startPhone() {
-            const code = document.getElementById('input-code').value;
-            peer = new Peer({ config: relayConfig, secure: true });
+        async function startCamera() {
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: true });
-                video.style.display = 'block';
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 480, frameRate: 15 }, // Low FPS for 5G stability
+                    audio: true 
+                });
+                video.style.display = "block";
                 video.srcObject = stream;
-                peer.call('omni-14-' + code, stream);
-                status.innerText = "Connected to Bridge...";
-            } catch (e) { alert("Camera Error"); }
+                
+                // We send frames to Gemini every 1 second (1 FPS)
+                // This is how the Live API "sees" and relays the data.
+                setInterval(() => {
+                    sendFrameToGemini(video);
+                }, 1000);
+
+            } catch (e) { alert("Camera Error: " + e.message); }
+        }
+
+        function sendFrameToGemini(vElement) {
+            const canvas = document.createElement('canvas');
+            canvas.width = vElement.videoWidth;
+            canvas.height = vElement.videoHeight;
+            canvas.getContext('2d').drawImage(vElement, 0, 0);
+            const base64Frame = canvas.toDataURL('image/jpeg', 0.5).split(',')[1];
+
+            const payload = {
+                realtime_input: {
+                    media_chunks: [{
+                        mime_type: "image/jpeg",
+                        data: base64Frame
+                    }]
+                }
+            };
+            ws.send(JSON.stringify(payload));
         }
     </script>
 </body>
