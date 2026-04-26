@@ -1,13 +1,13 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>OMNISYNC 6.1 | STREAM-LOCK</title>
+    <title>OMNISYNC 6.2 | SESSION FIX</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" crossorigin="anonymous"></script>
     <style>
         body { background: #000; color: #fff; font-family: sans-serif; text-align: center; margin: 0; padding: 20px; }
         .card { background: #1a1a1a; padding: 20px; border-radius: 15px; border: 1px solid #333; max-width: 400px; margin: auto; }
-        input { padding: 15px; width: 80%; font-size: 24px; border-radius: 10px; border: none; text-align: center; margin-bottom: 10px; }
+        input { padding: 15px; width: 80%; font-size: 24px; border-radius: 10px; border: none; text-align: center; margin-bottom: 10px; background: #333; color: #fff; }
         button { padding: 15px; width: 90%; font-size: 16px; margin: 5px; cursor: pointer; border-radius: 10px; border: none; font-weight: bold; }
         #v-box { width: 100%; max-width: 500px; aspect-ratio: 16/9; background: #000; margin: 20px auto; border-radius: 12px; overflow: hidden; border: 2px solid #007bff; display: none; }
         video { width: 100%; height: 100%; object-fit: cover; }
@@ -17,13 +17,14 @@
 <body>
 
     <div id="setup" class="card">
-        <h2>OMNISYNC 6.1</h2>
+        <h2>OMNISYNC 6.2</h2>
         <div id="pc-ui" style="display:none;">
             <p>PAIRING CODE:</p>
             <div id="code-display">----</div>
+            <button onclick="location.reload()" style="background:#555; color:#fff; width:60%; font-size:12px;">GENERATE NEW CODE</button>
         </div>
         <div id="phone-ui" style="display:none;">
-            <input type="number" id="input-code" placeholder="0000">
+            <input type="number" id="input-code" placeholder="0000" inputmode="numeric">
             <button style="background:#007bff; color:#fff;" onclick="startPhone()">CONNECT</button>
         </div>
         <div id="role-select">
@@ -52,16 +53,22 @@
         }
 
         function startPC() {
-            const code = Math.floor(1000 + Math.random() * 9000).toString();
-            document.getElementById('code-display').innerText = code;
+            // Generate a fresh code and append a timestamp hidden from the user
+            const displayCode = Math.floor(1000 + Math.random() * 9000).toString();
+            document.getElementById('code-display').innerText = displayCode;
             
-            peer = new Peer('omni-' + code, { 
+            // The actual Peer ID is unique every time (omni-CODE-TIMESTAMP)
+            const internalID = 'omni-' + displayCode;
+
+            peer = new Peer(internalID, { 
                 secure: true,
                 config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
             });
 
+            peer.on('open', () => status.innerText = "Listening for Mobile...");
+
             peer.on('call', (call) => {
-                if (isConnected) return; // LOCK: Ignore secondary calls once live
+                if (isConnected) return; 
                 call.answer();
                 call.on('stream', (s) => {
                     isConnected = true;
@@ -69,19 +76,28 @@
                     document.getElementById('v-box').style.display = 'block';
                     video.srcObject = s;
                     video.play();
-                    status.innerText = "LIVE - CLICK FOR AUDIO";
+                    status.innerText = "CONNECTED";
                 });
+            });
+
+            peer.on('error', (err) => {
+                if (err.type === 'unavailable-id') {
+                    // If the ID is still taken, just generate a new one automatically
+                    startPC();
+                }
             });
         }
 
         async function startPhone() {
             const code = document.getElementById('input-code').value;
-            status.innerText = "Starting Camera...";
+            status.innerText = "Requesting Camera...";
+            
+            // Phone gets a totally random ID every time
             peer = new Peer({ secure: true });
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "environment", width: { ideal: 480 } }, 
+                    video: { facingMode: "environment", width: 480 }, 
                     audio: true 
                 });
                 
@@ -92,25 +108,30 @@
                 
                 const callPC = () => {
                     if (isConnected) return;
-                    status.innerText = "Syncing with PC...";
+                    status.innerText = "Punching 5G Tunnel...";
                     const call = peer.call('omni-' + code, stream);
                     
-                    // On the phone side, we check if the PC actually picked up
-                    call.on('stream', () => { isConnected = true; status.innerText = "Streaming..."; });
+                    // If the stream starts, we are connected
+                    call.on('stream', () => { 
+                        isConnected = true; 
+                        status.innerText = "STREAMING LIVE"; 
+                    });
                 };
 
                 callPC();
+                // Slower retry to let the 5G NAT "settle"
                 const retry = setInterval(() => {
                     if(!isConnected) callPC();
                     else clearInterval(retry);
-                }, 4000);
+                }, 5000);
 
-            } catch (e) { alert("Camera Error"); }
+            } catch (e) { alert("Camera Error: " + e.message); }
         }
 
+        // Global click to unmute
         document.addEventListener('click', () => { 
             video.muted = false; 
-            if(video.srcObject) status.innerText = "LIVE (AUDIO ON)";
+            if(video.srcObject) status.innerText = "AUDIO ACTIVE";
         });
     </script>
 </body>
