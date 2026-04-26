@@ -1,85 +1,131 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>OMNISYNC 7.0 | STUBBORN</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>OMNISYNC 7.1 | CODE-SYNC</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" crossorigin="anonymous"></script>
     <style>
-        body { background: #000; color: #fff; font-family: sans-serif; text-align: center; margin: 0; }
-        .hero { padding: 40px 20px; }
-        #v-container { width: 100vw; height: 60vh; background: #111; position: relative; }
-        video { width: 100%; height: 100%; object-fit: contain; }
-        button { padding: 20px; width: 80%; max-width: 300px; font-size: 18px; margin: 10px; cursor: pointer; border-radius: 50px; border: none; font-weight: bold; }
-        #status { color: #555; font-size: 12px; margin: 10px; }
-        #unmute-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 100; }
+        :root { --blue: #007bff; --bg: #0a0a0a; }
+        body { background: var(--bg); color: #fff; font-family: -apple-system, sans-serif; text-align: center; margin: 0; padding: 20px; }
+        .card { background: #1a1a1a; padding: 30px; border-radius: 20px; border: 1px solid #333; max-width: 350px; margin: 20px auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        input { padding: 15px; width: 80%; font-size: 28px; border-radius: 12px; border: 2px solid #333; text-align: center; margin-bottom: 15px; background: #000; color: var(--blue); font-weight: bold; }
+        button { padding: 18px; width: 90%; font-size: 16px; margin: 8px; cursor: pointer; border-radius: 12px; border: none; font-weight: bold; transition: 0.2s; }
+        #v-box { width: 100%; max-width: 600px; aspect-ratio: 16/9; background: #000; margin: 20px auto; border-radius: 15px; overflow: hidden; border: 2px solid #333; display: none; }
+        video { width: 100%; height: 100%; object-fit: cover; }
+        #pairing-display { font-size: 54px; color: var(--blue); font-weight: 800; letter-spacing: 8px; margin: 15px 0; }
+        #status { font-family: monospace; color: #555; font-size: 12px; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-    <div id="ui" class="hero">
-        <h2>BROADCAST 7.0</h2>
-        <button style="background:#007bff; color:#fff;" onclick="run('sender')">PHONE: START SENDING</button>
-        <button style="background:#333; color:#fff;" onclick="run('receiver')">PC: START RECEIVING</button>
-        <div id="status">System Ready</div>
+    <div id="setup-screen" class="card">
+        <h2 style="margin-top:0">OMNISYNC 7.1</h2>
+        
+        <div id="pc-area" style="display:none;">
+            <p style="font-size:14px; color:#aaa;">PC PAIRING CODE</p>
+            <div id="pairing-display">----</div>
+            <button onclick="location.reload()" style="background:#333; color:#eee;">REGENERATE CODE</button>
+        </div>
+
+        <div id="phone-area" style="display:none;">
+            <p style="font-size:14px; color:#aaa;">ENTER 4-DIGIT CODE</p>
+            <input type="number" id="input-code" placeholder="0000" inputmode="numeric">
+            <button style="background:var(--blue); color:#fff;" onclick="startPhone()">CONNECT TO PC</button>
+        </div>
+
+        <div id="selector">
+            <button style="background:#333; color:#fff;" onclick="initPC()">I AM ON PC</button>
+            <button style="background:var(--blue); color:#fff;" onclick="initPhone()">I AM ON PHONE</button>
+        </div>
+        
+        <div id="status">System Standby</div>
     </div>
 
-    <div id="v-container">
-        <div id="unmute-overlay" onclick="unmute()">
-            <button style="background:#00ff00; color:#000;">TAP TO SEE VIDEO & AUDIO</button>
-        </div>
+    <div id="v-box">
         <video id="v" autoplay playsinline muted></video>
+        <button id="unmute-btn" onclick="unlockAudio()" style="position:absolute; bottom:10px; right:10px; width:auto; background:rgba(0,0,0,0.7); color:#fff; padding:10px 20px; font-size:12px;">TAP FOR AUDIO</button>
     </div>
 
     <script>
+        let peer;
+        let activeStream;
         const video = document.getElementById('v');
         const status = document.getElementById('status');
-        const CHANNEL = 'omnisync-fixed-channel-999'; // THE PERMANENT ID
-        let peer;
 
-        async function run(role) {
-            document.getElementById('ui').style.display = 'none';
-            status.innerText = "Connecting to Network...";
-
-            peer = new Peer(role === 'receiver' ? CHANNEL : undefined, {
+        function initPC() {
+            document.getElementById('selector').style.display = 'none';
+            document.getElementById('pc-area').style.display = 'block';
+            
+            // 1. Generate unique code
+            const code = Math.floor(1000 + Math.random() * 9000).toString();
+            document.getElementById('pairing-display').innerText = code;
+            
+            // 2. Initialize Peer with unique code
+            peer = new Peer('omni-room-' + code, { 
                 secure: true,
-                config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }] }
+                config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
             });
 
-            peer.on('open', () => {
-                if(role === 'receiver') {
-                    status.innerText = "PC READY. Waiting for mobile...";
-                } else {
-                    startCamera();
-                }
-            });
-
+            peer.on('open', () => status.innerText = "WAITING FOR PHONE...");
+            
             peer.on('call', (call) => {
-                status.innerText = "Receiving Signal...";
+                status.innerText = "INCOMING SIGNAL...";
                 call.answer();
-                call.on('stream', (stream) => {
-                    video.srcObject = stream;
-                    document.getElementById('unmute-overlay').style.display = 'flex';
-                    status.innerText = "SIGNAL RECEIVED";
+                call.on('stream', (remoteStream) => {
+                    showVideo(remoteStream);
+                    status.innerText = "LIVE CONNECTION";
                 });
+            });
+
+            peer.on('error', (err) => {
+                if(err.type === 'unavailable-id') initPC(); // Auto-fix collisions
             });
         }
 
-        async function startCamera() {
+        function initPhone() {
+            document.getElementById('selector').style.display = 'none';
+            document.getElementById('phone-area').style.display = 'block';
+        }
+
+        async function startPhone() {
+            const code = document.getElementById('input-code').value;
+            if(code.length !== 4) return alert("Enter the 4-digit code from the PC");
+
+            status.innerText = "Starting Camera...";
+            peer = new Peer({ secure: true }); // Phone gets a random ID
+
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: true });
-                video.srcObject = stream;
-                status.innerText = "Broadcasting...";
-                peer.call(CHANNEL, stream);
+                activeStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment", width: 640 }, 
+                    audio: true 
+                });
+                
+                showVideo(activeStream);
+                status.innerText = "Pairing with PC #" + code + "...";
+
+                // Handshake with the specific room
+                const call = peer.call('omni-room-' + code, activeStream);
+                
+                // If it fails on 5G, we let the user retry manually to avoid loop-crashes
+                call.on('error', () => {
+                    status.innerText = "Connection failed. Check code or 5G signal.";
+                });
+
             } catch (e) {
-                alert("Camera Error: " + e.message);
+                alert("Camera Access Denied");
             }
         }
 
-        function unmute() {
-            video.muted = false;
+        function showVideo(stream) {
+            document.getElementById('setup-screen').style.display = 'none';
+            document.getElementById('v-box').style.display = 'block';
+            video.srcObject = stream;
             video.play();
-            document.getElementById('unmute-overlay').style.display = 'none';
-            status.innerText = "LIVE";
+        }
+
+        function unlockAudio() {
+            video.muted = false;
+            document.getElementById('unmute-btn').style.display = 'none';
         }
     </script>
 </body>
