@@ -1,132 +1,97 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>OMNISYNC 7.1 | CODE-SYNC</title>
+    <title>OMNISYNC 8.0 | 5G RELAY</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        :root { --blue: #007bff; --bg: #0a0a0a; }
-        body { background: var(--bg); color: #fff; font-family: -apple-system, sans-serif; text-align: center; margin: 0; padding: 20px; }
-        .card { background: #1a1a1a; padding: 30px; border-radius: 20px; border: 1px solid #333; max-width: 350px; margin: 20px auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        input { padding: 15px; width: 80%; font-size: 28px; border-radius: 12px; border: 2px solid #333; text-align: center; margin-bottom: 15px; background: #000; color: var(--blue); font-weight: bold; }
-        button { padding: 18px; width: 90%; font-size: 16px; margin: 8px; cursor: pointer; border-radius: 12px; border: none; font-weight: bold; transition: 0.2s; }
-        #v-box { width: 100%; max-width: 600px; aspect-ratio: 16/9; background: #000; margin: 20px auto; border-radius: 15px; overflow: hidden; border: 2px solid #333; display: none; }
+        body { background: #000; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; }
+        .card { background: #1a1a1a; padding: 20px; border-radius: 15px; border: 1px solid #333; max-width: 350px; margin: auto; }
+        input { padding: 15px; width: 80%; font-size: 24px; border-radius: 10px; border: none; text-align: center; margin-bottom: 10px; background: #222; color: #007bff; }
+        button { padding: 15px; width: 90%; font-size: 16px; margin: 5px; cursor: pointer; border-radius: 10px; border: none; font-weight: bold; }
+        #v-box { width: 100%; max-width: 500px; aspect-ratio: 16/9; background: #000; margin: 20px auto; border-radius: 12px; overflow: hidden; border: 2px solid #333; display: none; position: relative; }
         video { width: 100%; height: 100%; object-fit: cover; }
-        #pairing-display { font-size: 54px; color: var(--blue); font-weight: 800; letter-spacing: 8px; margin: 15px 0; }
-        #status { font-family: monospace; color: #555; font-size: 12px; margin-top: 10px; }
+        #code-num { font-size: 48px; color: #007bff; font-weight: bold; letter-spacing: 5px; }
     </style>
 </head>
 <body>
 
-    <div id="setup-screen" class="card">
-        <h2 style="margin-top:0">OMNISYNC 7.1</h2>
-        
-        <div id="pc-area" style="display:none;">
-            <p style="font-size:14px; color:#aaa;">PC PAIRING CODE</p>
-            <div id="pairing-display">----</div>
-            <button onclick="location.reload()" style="background:#333; color:#eee;">REGENERATE CODE</button>
+    <div id="setup" class="card">
+        <h2>OMNISYNC 8.0</h2>
+        <div id="pc-view" style="display:none;">
+            <p>PAIRING CODE</p>
+            <div id="code-num">----</div>
         </div>
-
-        <div id="phone-area" style="display:none;">
-            <p style="font-size:14px; color:#aaa;">ENTER 4-DIGIT CODE</p>
-            <input type="number" id="input-code" placeholder="0000" inputmode="numeric">
-            <button style="background:var(--blue); color:#fff;" onclick="startPhone()">CONNECT TO PC</button>
+        <div id="phone-view" style="display:none;">
+            <input type="number" id="code-input" placeholder="0000">
+            <button style="background:#007bff; color:#fff;" onclick="startPhone()">CONNECT (5G)</button>
         </div>
-
         <div id="selector">
-            <button style="background:#333; color:#fff;" onclick="initPC()">I AM ON PC</button>
-            <button style="background:var(--blue); color:#fff;" onclick="initPhone()">I AM ON PHONE</button>
+            <button style="background:#333; color:#fff;" onclick="initPC()">PC (RECEIVE)</button>
+            <button style="background:#007bff; color:#fff;" onclick="initPhone()">PHONE (SEND)</button>
         </div>
-        
-        <div id="status">System Standby</div>
+        <div id="status" style="font-size:12px; color:#666; margin-top:10px;">Ready</div>
     </div>
 
     <div id="v-box">
         <video id="v" autoplay playsinline muted></video>
-        <button id="unmute-btn" onclick="unlockAudio()" style="position:absolute; bottom:10px; right:10px; width:auto; background:rgba(0,0,0,0.7); color:#fff; padding:10px 20px; font-size:12px;">TAP FOR AUDIO</button>
+        <button onclick="unlock()" style="position:absolute; bottom:10px; width:auto; left:50%; transform:translateX(-50%); background:rgba(0,123,255,0.8); color:white; padding:5px 15px;">UNMUTE</button>
     </div>
 
     <script>
         let peer;
-        let activeStream;
-        const video = document.getElementById('v');
         const status = document.getElementById('status');
+        const video = document.getElementById('v');
+
+        // RELAY CONFIG: This is the "magic" that helps 5G
+        const iceConfig = {
+            'iceServers': [
+                { urls: 'stun:stun.l.google.com:19302' },
+                { urls: 'stun:stun.metered.ca:80' }
+            ]
+        };
 
         function initPC() {
-            document.getElementById('selector').style.display = 'none';
-            document.getElementById('pc-area').style.display = 'block';
-            
-            // 1. Generate unique code
             const code = Math.floor(1000 + Math.random() * 9000).toString();
-            document.getElementById('pairing-display').innerText = code;
-            
-            // 2. Initialize Peer with unique code
-            peer = new Peer('omni-room-' + code, { 
-                secure: true,
-                config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
-            });
+            document.getElementById('code-num').innerText = code;
+            document.getElementById('selector').style.display = 'none';
+            document.getElementById('pc-view').style.display = 'block';
 
-            peer.on('open', () => status.innerText = "WAITING FOR PHONE...");
-            
+            peer = new Peer('omni-' + code, { config: iceConfig, secure: true });
+            peer.on('open', () => status.innerText = "PC Waiting...");
             peer.on('call', (call) => {
-                status.innerText = "INCOMING SIGNAL...";
+                status.innerText = "Signal Found!";
                 call.answer();
-                call.on('stream', (remoteStream) => {
-                    showVideo(remoteStream);
-                    status.innerText = "LIVE CONNECTION";
+                call.on('stream', (s) => {
+                    document.getElementById('setup').style.display = 'none';
+                    document.getElementById('v-box').style.display = 'block';
+                    video.srcObject = s;
+                    video.play();
                 });
-            });
-
-            peer.on('error', (err) => {
-                if(err.type === 'unavailable-id') initPC(); // Auto-fix collisions
             });
         }
 
         function initPhone() {
             document.getElementById('selector').style.display = 'none';
-            document.getElementById('phone-area').style.display = 'block';
+            document.getElementById('phone-view').style.display = 'block';
         }
 
         async function startPhone() {
-            const code = document.getElementById('input-code').value;
-            if(code.length !== 4) return alert("Enter the 4-digit code from the PC");
-
-            status.innerText = "Starting Camera...";
-            peer = new Peer({ secure: true }); // Phone gets a random ID
+            const code = document.getElementById('code-input').value;
+            status.innerText = "Opening 5G Relay...";
+            peer = new Peer({ config: iceConfig, secure: true });
 
             try {
-                activeStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "environment", width: 640 }, 
-                    audio: true 
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: "environment", width: 480 }, audio: true 
                 });
-                
-                showVideo(activeStream);
-                status.innerText = "Pairing with PC #" + code + "...";
-
-                // Handshake with the specific room
-                const call = peer.call('omni-room-' + code, activeStream);
-                
-                // If it fails on 5G, we let the user retry manually to avoid loop-crashes
-                call.on('error', () => {
-                    status.innerText = "Connection failed. Check code or 5G signal.";
-                });
-
-            } catch (e) {
-                alert("Camera Access Denied");
-            }
+                video.srcObject = stream;
+                peer.call('omni-' + code, stream);
+                status.innerText = "Broadcasting...";
+            } catch (e) { alert("Camera Error"); }
         }
 
-        function showVideo(stream) {
-            document.getElementById('setup-screen').style.display = 'none';
-            document.getElementById('v-box').style.display = 'block';
-            video.srcObject = stream;
-            video.play();
-        }
-
-        function unlockAudio() {
-            video.muted = false;
-            document.getElementById('unmute-btn').style.display = 'none';
-        }
+        function unlock() { video.muted = false; }
     </script>
 </body>
 </html>
