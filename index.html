@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>OMNISYNC 6.0 | PAIRING CODE</title>
+    <title>OMNISYNC 6.1 | STREAM-LOCK</title>
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" crossorigin="anonymous"></script>
     <style>
         body { background: #000; color: #fff; font-family: sans-serif; text-align: center; margin: 0; padding: 20px; }
         .card { background: #1a1a1a; padding: 20px; border-radius: 15px; border: 1px solid #333; max-width: 400px; margin: auto; }
-        input { padding: 15px; width: 80%; font-size: 24px; border-radius: 10px; border: none; text-align: center; margin-bottom: 10px; letter-spacing: 5px; }
+        input { padding: 15px; width: 80%; font-size: 24px; border-radius: 10px; border: none; text-align: center; margin-bottom: 10px; }
         button { padding: 15px; width: 90%; font-size: 16px; margin: 5px; cursor: pointer; border-radius: 10px; border: none; font-weight: bold; }
-        #video-box { width: 100%; max-width: 500px; aspect-ratio: 16/9; background: #000; margin: 20px auto; border-radius: 12px; overflow: hidden; border: 2px solid #007bff; display: none; }
+        #v-box { width: 100%; max-width: 500px; aspect-ratio: 16/9; background: #000; margin: 20px auto; border-radius: 12px; overflow: hidden; border: 2px solid #007bff; display: none; }
         video { width: 100%; height: 100%; object-fit: cover; }
         #code-display { font-size: 48px; color: #007bff; font-weight: bold; margin: 10px; letter-spacing: 10px; }
     </style>
@@ -17,38 +17,30 @@
 <body>
 
     <div id="setup" class="card">
-        <h2>OMNISYNC 6.0</h2>
-        
+        <h2>OMNISYNC 6.1</h2>
         <div id="pc-ui" style="display:none;">
-            <p>YOUR PAIRING CODE:</p>
+            <p>PAIRING CODE:</p>
             <div id="code-display">----</div>
-            <p style="font-size:12px; color:#777;">Enter this on your mobile device</p>
         </div>
-
         <div id="phone-ui" style="display:none;">
-            <p>ENTER PC CODE:</p>
-            <input type="number" id="input-code" placeholder="0000" pattern="\d*">
-            <button style="background:#007bff; color:#fff;" onclick="startPhone()">CONNECT TO PC</button>
+            <input type="number" id="input-code" placeholder="0000">
+            <button style="background:#007bff; color:#fff;" onclick="startPhone()">CONNECT</button>
         </div>
-
         <div id="role-select">
-            <button style="background:#444; color:#fff;" onclick="showPC()">I AM ON PC (RECEIVE)</button>
-            <button style="background:#007bff; color:#fff;" onclick="showPhone()">I AM ON PHONE (SEND)</button>
+            <button style="background:#444; color:#fff;" onclick="showPC()">PC (RECEIVE)</button>
+            <button style="background:#007bff; color:#fff;" onclick="showPhone()">PHONE (SEND)</button>
         </div>
     </div>
 
     <div id="status" style="margin-top:20px; font-family:monospace; color:#0f0;">Ready</div>
-    
-    <div id="video-box">
-        <video id="v" autoplay playsinline muted></video>
-    </div>
+    <div id="v-box"><video id="v" autoplay playsinline muted></video></div>
 
     <script>
         let peer;
+        let isConnected = false;
         const video = document.getElementById('v');
         const status = document.getElementById('status');
 
-        // 1. UI SWITCHING
         function showPC() {
             document.getElementById('role-select').style.display = 'none';
             document.getElementById('pc-ui').style.display = 'block';
@@ -59,54 +51,59 @@
             document.getElementById('phone-ui').style.display = 'block';
         }
 
-        // 2. PC LOGIC (Generate Code)
         function startPC() {
-            const randomCode = Math.floor(1000 + Math.random() * 9000).toString();
-            document.getElementById('code-display').innerText = randomCode;
+            const code = Math.floor(1000 + Math.random() * 9000).toString();
+            document.getElementById('code-display').innerText = code;
             
-            peer = new Peer('omni-code-' + randomCode, { secure: true });
+            peer = new Peer('omni-' + code, { 
+                secure: true,
+                config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+            });
 
-            peer.on('open', () => status.innerText = "Waiting for connection...");
             peer.on('call', (call) => {
-                status.innerText = "Connecting...";
+                if (isConnected) return; // LOCK: Ignore secondary calls once live
                 call.answer();
                 call.on('stream', (s) => {
+                    isConnected = true;
                     document.getElementById('setup').style.display = 'none';
-                    document.getElementById('video-box').style.display = 'block';
+                    document.getElementById('v-box').style.display = 'block';
                     video.srcObject = s;
                     video.play();
+                    status.innerText = "LIVE - CLICK FOR AUDIO";
                 });
             });
         }
 
-        // 3. PHONE LOGIC (Enter Code)
         async function startPhone() {
             const code = document.getElementById('input-code').value;
-            if (code.length !== 4) return alert("Enter 4-digit code");
-
             status.innerText = "Starting Camera...";
             peer = new Peer({ secure: true });
 
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: "environment", width: 640 }, 
+                    video: { facingMode: "environment", width: { ideal: 480 } }, 
                     audio: true 
                 });
                 
                 video.srcObject = stream;
-                video.style.display = 'block';
+                video.muted = true;
                 document.getElementById('setup').style.display = 'none';
-                document.getElementById('video-box').style.display = 'block';
+                document.getElementById('v-box').style.display = 'block';
                 
-                status.innerText = "Calling PC #" + code;
-                
-                // Aggressive retry loop to punch through 5G
-                const callPC = () => peer.call('omni-code-' + code, stream);
+                const callPC = () => {
+                    if (isConnected) return;
+                    status.innerText = "Syncing with PC...";
+                    const call = peer.call('omni-' + code, stream);
+                    
+                    // On the phone side, we check if the PC actually picked up
+                    call.on('stream', () => { isConnected = true; status.innerText = "Streaming..."; });
+                };
+
                 callPC();
                 const retry = setInterval(() => {
-                    if(status.innerText.includes("Calling")) callPC();
+                    if(!isConnected) callPC();
                     else clearInterval(retry);
-                }, 3000);
+                }, 4000);
 
             } catch (e) { alert("Camera Error"); }
         }
