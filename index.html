@@ -2,38 +2,42 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>OMNISYNC 18.1</title>
+    <title>OMNISYNC 18.2 | RE-SYNC</title>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
     <style>
-        body { background: #000; color: #0f0; font-family: monospace; text-align: center; }
-        .card { background: #111; padding: 20px; border: 1px solid #333; max-width: 350px; margin: 20px auto; }
+        body { background: #000; color: #0f0; font-family: monospace; text-align: center; margin: 0; }
+        .card { background: #111; padding: 20px; border: 1px solid #333; max-width: 350px; margin: 10px auto; border-radius: 10px; }
         input { width: 80%; padding: 10px; margin: 10px; background: #000; color: #0f0; border: 1px solid #0f0; }
-        button { width: 90%; padding: 15px; margin: 5px; cursor: pointer; font-weight: bold; }
-        #log { text-align: left; font-size: 10px; border: 1px solid #222; height: 120px; overflow-y: scroll; margin-top: 10px; padding: 5px; }
-        video { width: 100%; display: none; margin-top: 10px; border: 1px solid #007bff; }
+        button { width: 90%; padding: 15px; margin: 5px; cursor: pointer; border: none; font-weight: bold; border-radius: 5px; }
+        #log { text-align: left; font-size: 10px; border: 1px solid #222; height: 100px; overflow-y: scroll; margin-top: 10px; padding: 5px; color: #888; }
+        #v-wrap { position: relative; width: 100%; max-width: 600px; margin: auto; display: none; }
+        video { width: 100%; border: 1px solid #007bff; border-radius: 10px; }
+        #audio-notice { position: absolute; top: 10px; left: 10px; background: rgba(255,0,0,0.7); color: white; padding: 5px 10px; border-radius: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
 
-<div class="card">
-    <h3>OMNISYNC 18.1</h3>
+<div class="card" id="ui">
+    <h3>OMNISYNC 18.2</h3>
     <input type="text" id="room" placeholder="ROOM NAME">
     <button style="background:#222; color:#fff;" onclick="run('PC')">PC (RECEIVE)</button>
     <button style="background:#007bff; color:#fff;" onclick="run('PHONE')">PHONE (SEND)</button>
     <div id="log">System: Ready.</div>
 </div>
-<video id="v" autoplay playsinline muted></video>
+
+<div id="v-wrap">
+    <video id="v" autoplay playsinline muted></video>
+    <div id="audio-notice" onclick="unmute()">🔇 TAP FOR SOUND</div>
+</div>
 
 <script>
-    // --- REPLACE THESE WITH YOUR ACTUAL FIREBASE KEYS ---
     const firebaseConfig = {
-        apiKey: "AIzaSyARIK3hr04dEDQ1lZZM5AkQvJurRwQy6Z4",
-        databaseURL: "https://omnisync-b7a25-default-rtdb.europe-west1.firebasedatabase.app",
-        projectId: "omnisync-b7a25"
+        apiKey: "YOUR_API_KEY",
+        databaseURL: "YOUR_DATABASE_URL",
+        projectId: "YOUR_PROJECT_ID"
     };
-    // ----------------------------------------------------
 
     const msg = (t) => {
         const l = document.getElementById('log');
@@ -41,18 +45,23 @@
         l.scrollTop = l.scrollHeight;
     };
 
-    let db;
-    try {
-        firebase.initializeApp(firebaseConfig);
-        db = firebase.database();
-        msg("Firebase Connected.");
-    } catch (e) {
-        msg("Firebase Error: Check config.");
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const video = document.getElementById('v');
+
+    function unmute() {
+        video.muted = false;
+        document.getElementById('audio-notice').style.display = 'none';
+        msg("Audio Unmuted.");
     }
 
     async function run(role) {
         const roomName = document.getElementById('room').value.trim().toLowerCase();
         if(!roomName) return alert("Enter Room!");
+
+        msg("Wiping old session data...");
+        // This is the FIX for the 'Blank on Refresh' problem
+        await db.ref('rooms/' + roomName).remove(); 
 
         msg("Starting as " + role);
         const peer = new Peer(role + "-" + roomName, { secure: true });
@@ -60,32 +69,29 @@
         peer.on('open', (id) => {
             msg("ID Created: " + id);
             if(role === 'PC') {
-                db.ref('rooms/' + roomName).set({ pc_ready: true, ts: Date.now() })
-                    .then(() => msg("Firebase: PC is waiting..."))
-                    .catch(e => msg("Firebase Write Blocked!"));
+                db.ref('rooms/' + roomName).set({ pc_ready: true, ts: Date.now() });
+                msg("PC waiting for phone...");
             }
         });
-
-        peer.on('error', e => msg("Peer Error: " + e.type));
 
         if(role === 'PC') {
             peer.on('call', c => {
                 msg("Incoming Call!");
                 c.answer();
                 c.on('stream', s => {
-                    msg("Stream started!");
-                    document.getElementById('v').style.display = "block";
-                    document.getElementById('v').srcObject = s;
+                    document.getElementById('ui').style.display = "none";
+                    document.getElementById('v-wrap').style.display = "block";
+                    video.srcObject = s;
                 });
             });
         } else {
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({video:true, audio:true});
-                msg("Camera Active.");
+                msg("Camera active.");
                 db.ref('rooms/' + roomName).on('value', (snap) => {
                     const data = snap.val();
                     if(data && data.pc_ready) {
-                        msg("PC ready found. Calling...");
+                        msg("PC detected. Calling...");
                         peer.call("PC-" + roomName, stream);
                     }
                 });
