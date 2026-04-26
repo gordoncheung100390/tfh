@@ -1,128 +1,84 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>OMNISYNC 17 | GOOGLE CLOUD RELAY</title>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <title>OMNISYNC 17.1 | BYPASS</title>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" crossorigin="anonymous"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js" crossorigin="anonymous"></script>
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" crossorigin="anonymous"></script>
     <style>
-        body { background: #000; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; margin: 0; }
-        .card { background: #111; padding: 25px; border-radius: 20px; border: 1px solid #333; max-width: 350px; margin: 20px auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
-        input { padding: 15px; width: 85%; margin: 10px 0; border-radius: 10px; border: 1px solid #444; background: #000; color: #fff; text-align: center; font-size: 18px; }
-        button { padding: 15px; width: 95%; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; margin: 8px 0; transition: 0.2s; }
-        .btn-pc { background: #333; color: #fff; }
-        .btn-phone { background: #007bff; color: #fff; }
+        body { background: #000; color: #fff; font-family: sans-serif; text-align: center; padding: 20px; }
+        .card { background: #111; padding: 25px; border-radius: 20px; border: 1px solid #333; max-width: 350px; margin: auto; }
+        input { padding: 15px; width: 85%; margin: 10px 0; border-radius: 10px; background: #000; color: #fff; border: 1px solid #444; text-align: center; }
+        button { padding: 15px; width: 95%; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; margin: 5px; }
         #v-container { width: 100%; max-width: 500px; aspect-ratio: 16/9; background: #000; margin: 20px auto; border-radius: 15px; overflow: hidden; border: 2px solid #007bff; display: none; }
         video { width: 100%; height: 100%; object-fit: cover; }
-        #status { font-size: 12px; color: #666; margin-top: 15px; text-transform: uppercase; letter-spacing: 1px; }
     </style>
 </head>
 <body>
 
     <div id="setup" class="card">
-        <h2 style="margin: 0 0 10px 0;">OMNISYNC 17</h2>
-        <p style="font-size: 12px; color: #888;">GOOGLE CLOUD HANDSHAKE</p>
-        
+        <h2>OMNISYNC 17.1</h2>
         <input type="text" id="room-id" placeholder="Room Name (e.g. apple123)">
-        
-        <div id="selector">
-            <button class="btn-pc" onclick="startSession('PC')">PC: RECEIVE VIDEO</button>
-            <button class="btn-phone" onclick="startSession('PHONE')">PHONE: SEND VIDEO</button>
-        </div>
-        
-        <div id="status">Ready</div>
+        <button style="background:#333; color:#fff;" onclick="start('PC')">PC: RECEIVE</button>
+        <button style="background:#007bff; color:#fff;" onclick="start('PHONE')">PHONE: SEND</button>
+        <p id="status" style="font-size:11px; color:#555; margin-top:10px;">READY</p>
     </div>
 
     <div id="v-container">
         <video id="v" autoplay playsinline muted></video>
-        <button id="unmute-btn" onclick="unmute()" style="width: auto; padding: 10px 20px; margin-top: 10px; background: #222; color: #fff; border: 1px solid #444;">TAP FOR AUDIO</button>
     </div>
 
     <script>
-        // --- PASTE YOUR FIREBASE CONFIG FROM SETTINGS HERE ---
+        // YOUR FIREBASE CONFIG GOES HERE
         const firebaseConfig = {
-  apiKey: "AIzaSyARIK3hr04dEDQ1lZZM5AkQvJurRwQy6Z4",
-  authDomain: "omnisync-b7a25.firebaseapp.com",
-  databaseURL: "https://omnisync-b7a25-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "omnisync-b7a25",
-  storageBucket: "omnisync-b7a25.firebasestorage.app",
-  messagingSenderId: "437732358108",
-  appId: "1:437732358108:web:ca972d637b8a7160f24119"
-};
-        // -----------------------------------------------------
+            apiKey: "PASTE_HERE",
+            databaseURL: "PASTE_HERE",
+            projectId: "PASTE_HERE"
+        };
         
-        // Initialize Firebase
         firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
         let peer;
         const video = document.getElementById('v');
-        const status = document.getElementById('status');
 
-        async function startSession(role) {
-            const room = document.getElementById('room-id').value.trim().toLowerCase();
-            if(!room) return alert("Please enter a room name first!");
-            
-            status.innerText = "Connecting to Google Cloud...";
-            
-            // Standard WebRTC config with Google STUN
-            const peerConfig = {
-                'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }],
-                'secure': true
-            };
+        async function start(role) {
+            const room = document.getElementById('room-id').value.toLowerCase();
+            if(!room) return alert("Enter Room Name");
 
-            // Unique ID for this session
-            peer = new Peer(role + '-' + room, peerConfig);
+            document.getElementById('status').innerText = "BRIDGE INITIALIZING...";
 
-            if (role === 'PC') {
-                peer.on('open', (id) => {
-                    status.innerText = "Waiting for Phone Signal...";
-                    // Tell Firebase the PC is ready
-                    db.ref('rooms/' + room).set({ pc_ready: true, timestamp: Date.now() });
+            peer = new Peer(role + '-' + room, { secure: true });
+
+            if(role === 'PC') {
+                peer.on('open', () => {
+                    db.ref('rooms/' + room).set({ pc_ready: true });
+                    document.getElementById('status').innerText = "WAITING FOR PHONE...";
                 });
-
-                peer.on('call', (call) => {
-                    status.innerText = "Incoming Stream!";
+                peer.on('call', call => {
                     call.answer();
-                    call.on('stream', (remoteStream) => {
-                        showVideo(remoteStream);
-                    });
+                    call.on('stream', s => handleStream(s));
                 });
             } else {
-                // PHONE LOGIC
                 try {
-                    status.innerText = "Starting Camera...";
-                    const stream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { facingMode: "environment", width: 640 }, 
-                        audio: true 
+                    const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: true });
+                    handleStream(stream);
+                    db.ref('rooms/' + room).on('value', snap => {
+                        if(snap.val()?.pc_ready) peer.call('PC-' + room, stream);
                     });
-                    
-                    showVideo(stream);
-                    status.innerText = "Searching for PC...";
-
-                    // Listen to Firebase: When PC is ready, make the call
-                    db.ref('rooms/' + room).on('value', (snapshot) => {
-                        const data = snapshot.val();
-                        if (data && data.pc_ready) {
-                            status.innerText = "PC Detected! Punching Through...";
-                            peer.call('PC-' + room, stream);
-                        }
-                    });
-                } catch (err) {
-                    alert("Camera blocked: " + err.message);
-                }
+                } catch(e) { alert("Cam Error: " + e.name); }
             }
         }
 
-        function showVideo(stream) {
+        function handleStream(s) {
             document.getElementById('setup').style.display = 'none';
             document.getElementById('v-container').style.display = 'block';
-            video.srcObject = stream;
-            video.play();
-        }
-
-        function unmute() {
-            video.muted = false;
-            document.getElementById('unmute-btn').style.display = 'none';
+            video.srcObject = s;
+            
+            // Fix for the AbortError: Check if play is allowed
+            const playPromise = video.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => { console.log("Auto-play prevented"); });
+            }
         }
     </script>
 </body>
