@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>OMNISYNC 17.1 | BYPASS</title>
+    <title>OMNISYNC 17.2 | STABLE</title>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js" crossorigin="anonymous"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js" crossorigin="anonymous"></script>
     <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" crossorigin="anonymous"></script>
@@ -17,8 +17,8 @@
 <body>
 
     <div id="setup" class="card">
-        <h2>OMNISYNC 17.1</h2>
-        <input type="text" id="room-id" placeholder="Room Name (e.g. apple123)">
+        <h2>OMNISYNC 17.2</h2>
+        <input type="text" id="room-id" placeholder="Room Name">
         <button style="background:#333; color:#fff;" onclick="start('PC')">PC: RECEIVE</button>
         <button style="background:#007bff; color:#fff;" onclick="start('PHONE')">PHONE: SEND</button>
         <p id="status" style="font-size:11px; color:#555; margin-top:10px;">READY</p>
@@ -29,29 +29,41 @@
     </div>
 
     <script>
-        // YOUR FIREBASE CONFIG GOES HERE
+        // --- YOUR DATA HERE ---
         const firebaseConfig = {
-            apiKey: "PASTE_HERE",
-            databaseURL: "PASTE_HERE",
-            projectId: "PASTE_HERE"
+            apiKey: "YOUR_API_KEY",
+            databaseURL: "https://YOUR-PROJECT-ID.europe-west1.firebasedatabase.app",
+            projectId: "YOUR-PROJECT-ID"
         };
-        
-        firebase.initializeApp(firebaseConfig);
-        const db = firebase.database();
-        let peer;
+        // ----------------------
+
+        let db;
+        let peer = null; // Initialized as null to avoid the ReferenceError
         const video = document.getElementById('v');
 
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.database();
+        } catch (e) {
+            console.error("Firebase Init Error:", e);
+            document.getElementById('status').innerText = "FIREBASE CONFIG ERROR";
+        }
+
         async function start(role) {
-            const room = document.getElementById('room-id').value.toLowerCase();
+            const room = document.getElementById('room-id').value.trim().toLowerCase();
             if(!room) return alert("Enter Room Name");
 
-            document.getElementById('status').innerText = "BRIDGE INITIALIZING...";
+            document.getElementById('status').innerText = "INITIALIZING PEER...";
 
-            peer = new Peer(role + '-' + room, { secure: true });
+            // Initialize peer immediately when button is clicked
+            peer = new Peer(role + '-' + room, { 
+                config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }] },
+                secure: true 
+            });
 
             if(role === 'PC') {
                 peer.on('open', () => {
-                    db.ref('rooms/' + room).set({ pc_ready: true });
+                    db.ref('rooms/' + room).set({ pc_ready: true, time: Date.now() });
                     document.getElementById('status').innerText = "WAITING FOR PHONE...";
                 });
                 peer.on('call', call => {
@@ -63,9 +75,12 @@
                     const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" }, audio: true });
                     handleStream(stream);
                     db.ref('rooms/' + room).on('value', snap => {
-                        if(snap.val()?.pc_ready) peer.call('PC-' + room, stream);
+                        if(snap.val()?.pc_ready) {
+                            document.getElementById('status').innerText = "CONNECTING...";
+                            peer.call('PC-' + room, stream);
+                        }
                     });
-                } catch(e) { alert("Cam Error: " + e.name); }
+                } catch(e) { alert("Camera access denied"); }
             }
         }
 
@@ -73,12 +88,7 @@
             document.getElementById('setup').style.display = 'none';
             document.getElementById('v-container').style.display = 'block';
             video.srcObject = s;
-            
-            // Fix for the AbortError: Check if play is allowed
-            const playPromise = video.play();
-            if (playPromise !== undefined) {
-                playPromise.catch(error => { console.log("Auto-play prevented"); });
-            }
+            video.play().catch(e => console.log("Play interrupted"));
         }
     </script>
 </body>
