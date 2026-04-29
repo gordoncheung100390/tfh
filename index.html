@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OMNISYNC 5.6 | LARGER VIDEO</title>
+    <title>OMNISYNC 5.7 | CLEAN STAGE</title>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
@@ -49,13 +49,12 @@
         #chat-input-row input { flex: 1; background: transparent; border: none; padding: 10px; color: white; font-size: 13px; margin: 0; }
         
         #presence-roster {
-            position: absolute; top: 200px; left: 10px; /* Lowered to clear the larger video */
+            position: absolute; top: 200px; left: 10px; 
             background: rgba(0,0,0,0.8); padding: 10px; 
             border-radius: 8px; font-size: 11px; z-index: 1100;
             border: 1px solid rgba(255,255,255,0.1); pointer-events: none;
         }
 
-        /* NEW DOUBLE SIZE: 280x180 */
         #video-container { position: absolute; top: 10px; left: 10px; width: 280px; height: 180px; background: #000; border-radius: 10px; border: 2px solid var(--accent); overflow: hidden; z-index: 1000; }
         #wherebyFrame { width: 100%; height: 100%; border: none; }
 
@@ -70,7 +69,7 @@
 
     <div id="gatekeeper">
         <div class="gate-card">
-            <h2>OmniSync <span style="color:var(--accent)">5.6</span></h2>
+            <h2>OmniSync <span style="color:var(--accent)">5.7</span></h2>
             <input type="text" id="room-input" placeholder="Room Code">
             <input type="text" id="username-input" placeholder="Your Name">
             <div style="display:flex; gap:10px; margin: 15px 0;">
@@ -235,9 +234,14 @@
 
         App.studio = {
             init: function() {
+                // PARAMETERS UPDATED: Strip chat/people/info/precall and disable tourist cams to focus on the Guide
+                const base = "https://travelfromhome.whereby.com/tfh1027277d-1eba-45a2-8f24-33bcddb684b9";
+                const common = "&embed&chat=off&info=off&people=off&precall=off&screenshare=off&pip=off";
+                
                 const url = App.state.role === 'guide' 
-                    ? "https://travelfromhome.whereby.com/tfh1027277d-1eba-45a2-8f24-33bcddb684b9?roomKey=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJtZWV0aW5nSWQiOiIxMjg3NDEwNTgiLCJyb29tUmVmZXJlbmNlIjp7InJvb21OYW1lIjoiL3RmaDEwMjcyNzdkLTFlYmEtNDVhMi04ZjI0LTMzYmNkZGI2ODRiOSIsIm9yZ2FuaXphdGlvbklkIjoiMzM5NDM0In0sImlzcyI6Imh0dHBzOi8vYWNjb3VudHMuc3J2LndoZXJlYnkuY29tIiwiaWF0IjoxNzc3NDE0NzUwLCJyb29tS2V5VHlwZSI6Im1lZXRpbmdIb3N0In0.HRyWcZbdEIkjtB8DhHVHmlG2cwW_eccYPTM9fkiPna4&embed&chat=off&info=off&floatSelf=on&precall=off"
-                    : "https://travelfromhome.whereby.com/tfh1027277d-1eba-45a2-8f24-33bcddb684b9?embed&video=off&audio=off&chat=off&info=off&people=off&precall=off";
+                    ? base + "?roomKey=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJtZWV0aW5nSWQiOiIxMjg3NDEwNTgiLCJyb29tUmVmZXJlbmNlIjp7InJvb21OYW1lIjoiL3RmaDEwMjcyNzdkLTFlYmEtNDVhMi04ZjI0LTMzYmNkZGI2ODRiOSIsIm9yZ2FuaXphdGlvbklkIjoiMzM5NDM0In0sImlzcyI6Imh0dHBzOi8vYWNjb3VudHMuc3J2LndoZXJlYnkuY29tIiwiaWF0IjoxNzc3NDE0NzUwLCJyb29tS2V5VHlwZSI6Im1lZXRpbmdIb3N0In0.HRyWcZbdEIkjtB8DhHVHmlG2cwW_eccYPTM9fkiPna4" + common + "&floatSelf=on"
+                    : base + "?" + common + "&video=off&audio=off";
+                    
                 document.getElementById('wherebyFrame').src = url;
             }
         };
