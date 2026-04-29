@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OMNISYNC 4.0 | WHEREBY PRO</title>
+    <title>OMNISYNC 5.6 | LARGER VIDEO</title>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
@@ -14,103 +14,105 @@
         * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
         body, html { margin: 0; padding: 0; height: 100dvh; width: 100vw; background: var(--bg); color: white; font-family: sans-serif; overflow: hidden; }
 
-        /* Gatekeeper / Login */
         #gatekeeper { position: fixed; inset: 0; background: var(--bg); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 20px; }
-        .gate-card { background: var(--panel); padding: 30px; border-radius: 15px; text-align: center; border: 1px solid #333; width: 100%; max-width: 350px; }
-        input { width: 100%; padding: 15px; margin: 10px 0; border-radius: 8px; border: 1px solid #444; background: #000; color: #fff; font-size: 16px; }
+        .gate-card { background: var(--panel); padding: 30px; border-radius: 20px; text-align: center; border: 1px solid #333; width: 100%; max-width: 350px; }
+        input { width: 100%; padding: 15px; margin: 10px 0; border-radius: 12px; border: 1px solid #444; background: #000; color: #fff; font-size: 16px; outline: none; }
 
-        /* Layout */
         #app-shell { display: none; height: 100dvh; width: 100vw; flex-direction: column; }
-        #view-3d { flex: 1.2; background: #111; position: relative; width: 100%; }
-        #view-2d { flex: 0.8; background: var(--panel); width: 100%; border-top: 2px solid #000; }
-        
+        #view-3d { height: 50%; background: #111; position: relative; overflow: hidden; min-height: 10%; }
+        #view-2d { flex: 1; background: var(--panel); min-height: 10%; }
+
+        #resizer { 
+            height: 12px; width: 100%; background: #222; 
+            cursor: ns-resize; display: flex; align-items: center; 
+            justify-content: center; z-index: 2000; border-top: 1px solid #333; 
+            border-bottom: 1px solid #000; touch-action: none;
+        }
+        #resizer::after { content: ''; width: 40px; height: 4px; background: #555; border-radius: 2px; }
+
         @media (min-width: 768px) {
             #app-shell { flex-direction: row; }
-            #view-3d { flex: 1; }
-            #view-2d { width: 350px; flex: none; border-top: none; border-left: 2px solid #000; }
+            #view-3d { width: 50%; height: 100% !important; min-width: 10%; }
+            #resizer { width: 12px; height: 100%; cursor: ew-resize; border: none; border-left: 1px solid #333; border-right: 1px solid #000; }
+            #resizer::after { width: 4px; height: 40px; }
         }
 
-        /* Video Container (Whereby Embed) */
-        #video-container { 
-            position: absolute; top: 10px; left: 10px; 
-            width: 180px; height: 120px; 
-            background: #000; border-radius: 12px; 
-            border: 2px solid var(--accent); overflow: hidden; z-index: 1000; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        #chat-outer {
+            position: absolute; bottom: 60px; left: 10px; width: 260px; height: 200px;
+            background: rgba(0,0,0,0.6); border-radius: 10px; display: flex; flex-direction: column;
+            border: 1px solid rgba(255,255,255,0.1); z-index: 1200; backdrop-filter: blur(5px);
         }
-        iframe { width: 100%; height: 100%; border: none; }
+        #chat-messages { flex: 1; overflow-y: auto; padding: 8px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
+        .msg { word-wrap: break-word; line-height: 1.4; }
+        .msg b { color: var(--accent); }
+        #chat-input-row { display: flex; border-top: 1px solid rgba(255,255,255,0.1); }
+        #chat-input-row input { flex: 1; background: transparent; border: none; padding: 10px; color: white; font-size: 13px; margin: 0; }
+        
+        #presence-roster {
+            position: absolute; top: 200px; left: 10px; /* Lowered to clear the larger video */
+            background: rgba(0,0,0,0.8); padding: 10px; 
+            border-radius: 8px; font-size: 11px; z-index: 1100;
+            border: 1px solid rgba(255,255,255,0.1); pointer-events: none;
+        }
 
-        /* Search & Controls */
-        #search-container { position: absolute; top: 10px; right: 10px; width: 180px; z-index: 1000; display: none; }
-        #pac-input { width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--accent); background: #000; color: #fff; font-size: 14px; }
+        /* NEW DOUBLE SIZE: 280x180 */
+        #video-container { position: absolute; top: 10px; left: 10px; width: 280px; height: 180px; background: #000; border-radius: 10px; border: 2px solid var(--accent); overflow: hidden; z-index: 1000; }
+        #wherebyFrame { width: 100%; height: 100%; border: none; }
 
-        .controls { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 1000; width: 90%; justify-content: center; }
-        button { background: #fff; color: #000; border: none; padding: 12px 18px; border-radius: 25px; font-weight: bold; cursor: pointer; font-size: 11px; }
+        #search-container { position: absolute; top: 10px; right: 10px; width: 180px; z-index: 1001; display: none; }
+        #pac-input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--accent); background: #000; color: #fff; font-size: 14px; }
+        .controls { position: absolute; bottom: 15px; right: 15px; z-index: 1000; }
+        button { background: #fff; color: #000; border: none; padding: 10px 18px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 11px; }
         button.active { background: var(--accent); }
-        #roster-panel { position: absolute; bottom: 60px; left: 10px; width: 120px; background: rgba(0,0,0,0.6); padding: 8px; border-radius: 8px; font-size: 10px; z-index: 1000; pointer-events: none; }
     </style>
 </head>
 <body>
 
     <div id="gatekeeper">
         <div class="gate-card">
-            <h2 style="color:var(--accent)">OMNISYNC 4.0</h2>
-            <p style="font-size: 12px; color: #888; margin-bottom: 20px;">PRO RELAY ACTIVE</p>
-            <input type="text" id="room-input" placeholder="Room Code (e.g. TFH)">
+            <h2>OmniSync <span style="color:var(--accent)">5.6</span></h2>
+            <input type="text" id="room-input" placeholder="Room Code">
             <input type="text" id="username-input" placeholder="Your Name">
             <div style="display:flex; gap:10px; margin: 15px 0;">
                 <button id="btn-t" onclick="App.setRole('tourist')" style="flex:1">TOURIST</button>
                 <button id="btn-g" onclick="App.setRole('guide')" style="flex:1; background:#222; color:#888;">GUIDE</button>
             </div>
-            <button onclick="App.launch()" style="width:100%; background: var(--accent); color:black; padding:15px; border-radius: 10px;">ENTER ROOM</button>
+            <button onclick="App.launch()" style="width:100%; background: var(--accent); color:black; padding:15px; border-radius: 12px; font-weight:bold;">LAUNCH TOUR</button>
         </div>
     </div>
 
     <div id="app-shell">
         <div id="view-3d">
-            <div id="video-container">
-                <iframe id="wherebyFrame" allow="camera; microphone; fullscreen; speaker; display-capture"></iframe>
+            <div id="presence-roster"><div style="color:var(--accent); font-weight:bold; margin-bottom:5px;">ONLINE</div><div id="user-list-render"></div></div>
+            <div id="chat-outer">
+                <div id="chat-messages"></div>
+                <div id="chat-input-row"><input type="text" id="chat-msg-field" placeholder="Type message..." onkeydown="if(event.key==='Enter') App.brain.sendChat()"></div>
             </div>
-            
+            <div id="video-container"><iframe id="wherebyFrame" allow="camera; microphone; fullscreen; speaker; display-capture"></iframe></div>
             <div id="search-container"><input id="pac-input" type="text" placeholder="Search Location..."></div>
-            <div id="roster-panel"><div id="user-list"></div></div>
-            
-            <div class="controls">
-                <button id="tether-btn" onclick="App.brain.toggleTether()">Tethered</button>
-                <button onclick="App.eyes.centerToMe()" style="background:#444; color:white;">Find Me</button>
-            </div>
+            <div class="controls" id="tourist-controls" style="display:none;"><button id="tether-btn" onclick="App.brain.toggleTether()">Tethered</button></div>
         </div>
+        <div id="resizer"></div>
         <div id="view-2d"></div>
     </div>
 
     <script>
         const App = {
             state: { role: 'tourist', room: 'LOBBY', name: 'User', id: "U"+Date.now(), isTethered: true, isSyncing: false },
-            
             setRole: function(r) {
                 this.state.role = r;
                 document.getElementById('btn-t').style = r==='tourist' ? "background:#fff" : "background:#222;color:#888";
                 document.getElementById('btn-g').style = r==='guide' ? "background:#fff" : "background:#222;color:#888";
             },
-
             launch: function() {
                 this.state.name = document.getElementById('username-input').value || "User";
                 this.state.room = document.getElementById('room-input').value.toUpperCase() || "LOBBY";
-                
                 document.getElementById('gatekeeper').style.display = 'none';
                 document.getElementById('app-shell').style.display = 'flex';
-                
-                if(this.state.role === 'guide') {
-                    document.getElementById('search-container').style.display = 'block';
-                    document.getElementById('tether-btn').style.display = 'none';
-                }
-                
-                // Initialize modules
-                App.postOffice.init(); 
-                App.eyes.init(); 
-                App.studio.startWhereby();
+                App.postOffice.init(); App.eyes.init(); App.studio.init(); App.ui.initResizer();
+                if(this.state.role === 'guide') { document.getElementById('search-container').style.display = 'block'; App.postOffice.clearChat(); }
+                else { document.getElementById('tourist-controls').style.display = 'block'; }
             },
-
             brain: {
                 toggleTether: function() {
                     App.state.isTethered = !App.state.isTethered;
@@ -120,59 +122,66 @@
                     if(App.state.isTethered) {
                         App.postOffice.db.ref("rooms/"+App.state.room+"/guide").once("value", s => { if(s.val()) App.postOffice.applyMove(s.val()); });
                     }
+                },
+                sendChat: function() {
+                    const field = document.getElementById('chat-msg-field');
+                    if(!field.value.trim()) return;
+                    App.postOffice.db.ref("rooms/"+App.state.room+"/chats").push({ sender: App.state.name, text: field.value, time: firebase.database.ServerValue.TIMESTAMP });
+                    field.value = "";
                 }
+            }
+        };
+
+        App.ui = {
+            initResizer: function() {
+                const resizer = document.getElementById('resizer'), v3d = document.getElementById('view-3d');
+                let dragging = false;
+                const move = (e) => {
+                    if (!dragging) return;
+                    const y = e.touches ? e.touches[0].clientY : e.clientY, x = e.touches ? e.touches[0].clientX : e.clientX;
+                    if (window.innerWidth >= 768) { let v = (x / window.innerWidth) * 100; if(v > 10 && v < 90) v3d.style.width = v + '%'; }
+                    else { let v = (y / window.innerHeight) * 100; if(v > 10 && v < 90) v3d.style.height = v + '%'; }
+                    if(App.eyes.map) google.maps.event.trigger(App.eyes.map, 'resize');
+                };
+                resizer.addEventListener('mousedown', () => dragging = true);
+                resizer.addEventListener('touchstart', () => dragging = true);
+                window.addEventListener('mousemove', move);
+                window.addEventListener('touchmove', move);
+                window.addEventListener('mouseup', () => dragging = false);
+                window.addEventListener('touchend', () => dragging = false);
             }
         };
 
         App.eyes = {
             map: null, panorama: null, markers: {},
             init: function() {
-                const center = { lat: 44.4268, lng: 26.1025 }; // Default Romania
-                this.map = new google.maps.Map(document.getElementById('view-2d'), { 
-                    center: center, zoom: 17, streetViewControl: true, mapTypeControl: false, zoomControl: false
-                });
-                this.panorama = new google.maps.StreetViewPanorama(document.getElementById('view-3d'), { 
-                    position: center, addressControl: false 
-                });
+                const center = { lat: 44.4268, lng: 26.1025 };
+                this.map = new google.maps.Map(document.getElementById('view-2d'), { center, zoom: 17, streetViewControl: true, panControl: true, mapTypeControl: false, zoomControl: true });
+                this.panorama = new google.maps.StreetViewPanorama(document.getElementById('view-3d'), { position: center, visible: true, disableDefaultUI: true });
                 this.map.setStreetView(this.panorama);
 
                 if(App.state.role === 'guide') {
                     const search = new google.maps.places.Autocomplete(document.getElementById("pac-input"));
                     search.addListener("place_changed", () => {
                         const p = search.getPlace();
-                        if(p.geometry) { this.panorama.setPosition(p.geometry.location); this.map.setCenter(p.geometry.location); }
+                        if(!p.geometry) return;
+                        const loc = p.geometry.location;
+                        this.panorama.setPosition(loc);
+                        this.map.setCenter(loc);
+                        const v = this.panorama.getPov();
+                        App.postOffice.transmit({ lat: loc.lat(), lng: loc.lng(), h: v.heading, p: v.pitch });
                     });
                 }
 
                 const report = () => {
-                    const p = this.panorama.getPosition(); const v = this.panorama.getPov();
-                    if(!p) return;
+                    const p = this.panorama.getPosition(), v = this.panorama.getPov();
+                    if(!p || App.state.isSyncing) return;
                     this.map.setCenter(p);
-                    if(App.state.role === 'guide' && !App.state.isSyncing) { App.postOffice.transmit({ lat: p.lat(), lng: p.lng(), h: v.heading, p: v.pitch }); }
                     App.postOffice.db.ref("rooms/"+App.state.room+"/users/"+App.state.id).update({ lat: p.lat(), lng: p.lng(), name: App.state.name, role: App.state.role });
+                    if(App.state.role === 'guide') App.postOffice.transmit({ lat: p.lat(), lng: p.lng(), h: v.heading, p: v.pitch });
                 };
                 this.panorama.addListener('position_changed', report);
                 this.panorama.addListener('pov_changed', report);
-            },
-            centerToMe: function() {
-                if (navigator.geolocation) {
-                    navigator.geolocation.getCurrentPosition(p => {
-                        const myPos = { lat: p.coords.latitude, lng: p.coords.longitude };
-                        this.panorama.setPosition(myPos);
-                    });
-                }
-            },
-            renderDots: function(users) {
-                Object.keys(users).forEach(uid => {
-                    if(uid === App.state.id) return;
-                    const u = users[uid]; if(!u.lat) return;
-                    if(this.markers[uid]) { this.markers[uid].setPosition({lat: u.lat, lng: u.lng}); } else {
-                        this.markers[uid] = new google.maps.Marker({
-                            position: {lat: u.lat, lng: u.lng}, map: this.map, label: { text: u.name[0], color: "white" },
-                            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 7, fillColor: u.role === 'guide' ? "#ff0000" : "#00d2ff", fillOpacity: 1, strokeWeight: 2, strokeColor: "#fff" }
-                        });
-                    }
-                });
             }
         };
 
@@ -182,43 +191,54 @@
                 const config = { databaseURL: "https://virtual-tour-platform-492518-default-rtdb.firebaseio.com" };
                 if (!firebase.apps.length) firebase.initializeApp(config);
                 this.db = firebase.database();
-                
                 this.db.ref("rooms/"+App.state.room+"/users/"+App.state.id).onDisconnect().remove();
-
+                this.db.ref("rooms/"+App.state.room+"/chats").limitToLast(30).on("child_added", s => {
+                    const m = s.val(), box = document.getElementById('chat-messages');
+                    box.innerHTML += `<div class="msg"><b>${m.sender}:</b> ${m.text}</div>`;
+                    box.scrollTop = box.scrollHeight;
+                });
                 if(App.state.role === 'tourist') {
                     this.db.ref("rooms/"+App.state.room+"/guide").on("value", s => { if(s.val() && App.state.isTethered) this.applyMove(s.val()); });
                 }
-
-                this.db.ref("rooms/"+App.state.room+"/users").on("value", s => {
-                    const users = s.val() || {};
-                    document.getElementById('user-list').innerHTML = Object.values(users).map(u => `<div>${u.role==='guide'?'👑':'👤'} ${u.name}</div>`).join('');
-                    App.eyes.renderDots(users);
-                });
+                this.db.ref("rooms/"+App.state.room+"/users").on("value", s => this.renderUsers(s.val() || {}));
             },
-            transmit: function(data) { this.db.ref("rooms/"+App.state.room+"/guide").set(data); },
+            clearChat: function() { this.db.ref("rooms/"+App.state.room+"/chats").remove(); },
+            transmit: function(d) { this.db.ref("rooms/"+App.state.room+"/guide").set(d); },
             applyMove: function(d) {
                 App.state.isSyncing = true;
-                App.eyes.panorama.setPosition({lat: d.lat, lng: d.lng});
+                const loc = {lat: d.lat, lng: d.lng};
+                App.eyes.panorama.setPosition(loc);
                 App.eyes.panorama.setPov({heading: d.h, pitch: d.p});
-                setTimeout(() => App.state.isSyncing = false, 200);
+                App.eyes.map.setCenter(loc);
+                setTimeout(() => App.state.isSyncing = false, 300);
+            },
+            renderUsers: function(users) {
+                const list = document.getElementById('user-list-render');
+                let html = "";
+                Object.keys(users).forEach(uid => {
+                    const u = users[uid];
+                    html += `<div>${u.role==='guide'?'👑':'👤'} ${u.name}</div>`;
+                    if(uid === App.state.id || !u.lat) return;
+                    if(!App.eyes.markers[uid]) {
+                        App.eyes.markers[uid] = new google.maps.Marker({
+                            map: App.eyes.map,
+                            label: { text: u.name, color: "white", fontSize: "11px", fontWeight: "bold" },
+                            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: u.role === 'guide' ? "#ff3333" : "#00d2ff", fillOpacity: 1, strokeWeight: 2, strokeColor: "#fff", labelOrigin: new google.maps.Point(0, -2) }
+                        });
+                    }
+                    App.eyes.markers[uid].setPosition({lat: u.lat, lng: u.lng});
+                });
+                list.innerHTML = html;
+                Object.keys(App.eyes.markers).forEach(mid => { if(!users[mid]) { App.eyes.markers[mid].setMap(null); delete App.eyes.markers[mid]; } });
             }
         };
 
         App.studio = {
-            startWhereby: function() {
-                const frame = document.getElementById('wherebyFrame');
-                let url = "";
-                
-                // Absolute Whereby Room URLs
-                if (App.state.role === 'guide') {
-                    // Guide joins with the host roomKey to broadcast
-                    url = "https://travelfromhome.whereby.com/tfh1027277d-1eba-45a2-8f24-33bcddb684b9?roomKey=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJtZWV0aW5nSWQiOiIxMjg3NDEwNTgiLCJyb29tUmVmZXJlbmNlIjp7InJvb21OYW1lIjoiL3RmaDEwMjcyNzdkLTFlYmEtNDVhMi04ZjI0LTMzYmNkZGI2ODRiOSIsIm9yZ2FuaXphdGlvbklkIjoiMzM5NDM0In0sImlzcyI6Imh0dHBzOi8vYWNjb3VudHMuc3J2LndoZXJlYnkuY29tIiwiaWF0IjoxNzc3NDE0NzUwLCJyb29tS2V5VHlwZSI6Im1lZXRpbmdIb3N0In0.HRyWcZbdEIkjtB8DhHVHmlG2cwW_eccYPTM9fkiPna4&embed&chat=off&info=off&floatSelf=on&precall=off";
-                } else {
-                    // Tourist joins as viewer only
-                    url = "https://travelfromhome.whereby.com/tfh1027277d-1eba-45a2-8f24-33bcddb684b9?embed&video=off&audio=off&chat=off&info=off&people=off&precall=off";
-                }
-                
-                frame.src = url;
+            init: function() {
+                const url = App.state.role === 'guide' 
+                    ? "https://travelfromhome.whereby.com/tfh1027277d-1eba-45a2-8f24-33bcddb684b9?roomKey=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJtZWV0aW5nSWQiOiIxMjg3NDEwNTgiLCJyb29tUmVmZXJlbmNlIjp7InJvb21OYW1lIjoiL3RmaDEwMjcyNzdkLTFlYmEtNDVhMi04ZjI0LTMzYmNkZGI2ODRiOSIsIm9yZ2FuaXphdGlvbklkIjoiMzM5NDM0In0sImlzcyI6Imh0dHBzOi8vYWNjb3VudHMuc3J2LndoZXJlYnkuY29tIiwiaWF0IjoxNzc3NDE0NzUwLCJyb29tS2V5VHlwZSI6Im1lZXRpbmdIb3N0In0.HRyWcZbdEIkjtB8DhHVHmlG2cwW_eccYPTM9fkiPna4&embed&chat=off&info=off&floatSelf=on&precall=off"
+                    : "https://travelfromhome.whereby.com/tfh1027277d-1eba-45a2-8f24-33bcddb684b9?embed&video=off&audio=off&chat=off&info=off&people=off&precall=off";
+                document.getElementById('wherebyFrame').src = url;
             }
         };
     </script>
