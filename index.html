@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OMNISYNC 5.9 | AUDITORIUM MODE</title>
+    <title>OMNISYNC 6.1 | SNAP-TO-ROAD</title>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
@@ -37,7 +37,6 @@
             #resizer::after { width: 4px; height: 40px; }
         }
 
-        /* CHATBOX UPDATES */
         #chat-outer {
             position: absolute; bottom: 60px; left: 10px; width: 260px; height: 220px;
             background: rgba(0,0,0,0.6); border-radius: 10px; display: flex; flex-direction: column;
@@ -91,7 +90,7 @@
 
     <div id="gatekeeper">
         <div class="gate-card">
-            <h2>OmniSync <span style="color:var(--accent)">5.9</span></h2>
+            <h2>OmniSync <span style="color:var(--accent)">6.1</span></h2>
             <input type="text" id="room-input" placeholder="Room Code">
             <input type="text" id="username-input" placeholder="Your Name">
             <div style="display:flex; gap:10px; margin: 15px 0;">
@@ -194,14 +193,27 @@
 
                 if(App.state.role === 'guide') {
                     const search = new google.maps.places.Autocomplete(document.getElementById("pac-input"));
+                    const svService = new google.maps.StreetViewService();
+
                     search.addListener("place_changed", () => {
                         const p = search.getPlace();
                         if(!p.geometry) return;
                         const loc = p.geometry.location;
-                        this.panorama.setPosition(loc);
-                        this.map.setCenter(loc);
-                        const v = this.panorama.getPov();
-                        App.postOffice.transmit({ lat: loc.lat(), lng: loc.lng(), h: v.heading, p: v.pitch });
+                        
+                        // VERSION 6.1: SNAP-TO-ROAD LOGIC
+                        svService.getPanorama({ location: loc, radius: 50 }, (data, status) => {
+                            if (status === "OK") {
+                                const newPos = data.location.latLng;
+                                this.panorama.setPosition(newPos);
+                                this.map.setCenter(newPos);
+                                const v = this.panorama.getPov();
+                                App.postOffice.transmit({ lat: newPos.lat(), lng: newPos.lng(), h: v.heading, p: v.pitch });
+                            } else {
+                                // Fallback: try to center map anyway but notify user
+                                this.map.setCenter(loc);
+                                console.warn("No Street View available at search pinpoint.");
+                            }
+                        });
                     });
                 }
 
