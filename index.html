@@ -280,7 +280,7 @@
                         App.eyes.markers[uid] = new google.maps.Marker({
                             map: App.eyes.map,
                             label: { text: u.name, color: "white", fontSize: "11px", fontWeight: "bold" },
-                            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 6, fillColor: u.role === 'guide' ? "#ff3333" : "#00d2ff", fillOpacity: 1, strokeWeight: 2, strokeColor: "#fff", labelOrigin: new google.maps.Point(0, -2) }
+                            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: u.role === 'guide' ? "#ff3333" : "#00d2ff", fillOpacity: 1, strokeWeight: 2, strokeColor: "#fff", labelOrigin: new google.maps.Point(0, -2) }
                         });
                     }
                     App.eyes.markers[uid].setPosition({lat: u.lat, lng: u.lng});
