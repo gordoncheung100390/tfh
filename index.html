@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OMNISYNC 6.2 | MANUAL DEPLOYMENT</title>
+    <title>OMNISYNC 6.3 | PEGMAN FIX</title>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
@@ -20,7 +20,7 @@
 
         #app-shell { display: none; height: 100dvh; width: 100vw; flex-direction: column; }
         #view-3d { height: 50%; background: #111; position: relative; overflow: hidden; min-height: 10%; }
-        #view-2d { flex: 1; background: var(--panel); min-height: 10%; }
+        #view-2d { flex: 1; background: var(--panel); min-height: 10%; position: relative; }
 
         #resizer { 
             height: 12px; width: 100%; background: #222; 
@@ -90,7 +90,7 @@
 
     <div id="gatekeeper">
         <div class="gate-card">
-            <h2>OmniSync <span style="color:var(--accent)">6.2</span></h2>
+            <h2>OmniSync <span style="color:var(--accent)">6.3</span></h2>
             <input type="text" id="room-input" placeholder="Room Code">
             <input type="text" id="username-input" placeholder="Your Name">
             <div style="display:flex; gap:10px; margin: 15px 0;">
@@ -187,13 +187,26 @@
             map: null, panorama: null, markers: {},
             init: function() {
                 const center = { lat: 44.4268, lng: 26.1025 };
-                this.map = new google.maps.Map(document.getElementById('view-2d'), { center, zoom: 17, streetViewControl: true, panControl: true, mapTypeControl: false, zoomControl: true });
-                this.panorama = new google.maps.StreetViewPanorama(document.getElementById('view-3d'), { position: center, visible: true, disableDefaultUI: true });
+                // FIX: Explicitly enable streetViewControl for Pegman visibility
+                this.map = new google.maps.Map(document.getElementById('view-2d'), { 
+                    center, 
+                    zoom: 17, 
+                    streetViewControl: true, 
+                    zoomControl: true,
+                    panControl: true, 
+                    mapTypeControl: false,
+                    fullscreenControl: false
+                });
+                
+                this.panorama = new google.maps.StreetViewPanorama(document.getElementById('view-3d'), { 
+                    position: center, 
+                    visible: true, 
+                    disableDefaultUI: true 
+                });
                 this.map.setStreetView(this.panorama);
 
                 if(App.state.role === 'guide') {
                     const search = new google.maps.places.Autocomplete(document.getElementById("pac-input"));
-                    // Initialize the checking service
                     const svService = new google.maps.StreetViewService();
 
                     search.addListener("place_changed", () => {
@@ -201,20 +214,17 @@
                         if(!p.geometry) return;
                         const loc = p.geometry.location;
 
-                        // Check for coverage before moving
                         svService.getPanorama({ location: loc, radius: 50 }, (data, status) => {
                             if (status === "OK") {
-                                // Coverage exists: Snap to the nearest panorama
                                 const svPos = data.location.latLng;
                                 this.panorama.setPosition(svPos);
                                 this.map.setCenter(svPos);
                                 const v = this.panorama.getPov();
                                 App.postOffice.transmit({ lat: svPos.lat(), lng: svPos.lng(), h: v.heading, p: v.pitch });
                             } else {
-                                // No coverage: Alert and center 2D map for manual Pegman drop
                                 this.map.setCenter(loc);
-                                this.map.setZoom(17);
-                                alert("No Street View found at this precise location. Please manually deploy the Pegman to a nearby blue road!");
+                                this.map.setZoom(18); // Zoom in closer to help find blue lines
+                                alert("No Street View coverage here! \n\nLook for the YELLOW PEGMAN in the bottom-right of the map and drag him onto a BLUE road.");
                             }
                         });
                     });
