@@ -64,15 +64,16 @@
             overflow: hidden; z-index: 1000; 
         }
 
-        /* THE SHIELD: Prevents interaction with background UI */
+        /* THE SHIELD: Restored Pass-Through Logic */
         #video-shield {
             position: absolute; inset: 0;
             z-index: 1002;
             background: transparent;
+            pointer-events: none; /* Clicks pass through */
         }
         
         #wherebyFrame { 
-            width: 150%; height: 150%; /* Slightly more zoom to handle larger grids */
+            width: 150%; height: 150%; 
             border: none; 
             position: absolute;
             top: -25%; left: -25%; 
@@ -131,12 +132,12 @@
                 document.getElementById('gatekeeper').style.display = 'none';
                 document.getElementById('app-shell').style.display = 'flex';
                 App.postOffice.init(); App.eyes.init(); App.studio.init(); App.ui.initResizer();
+                
                 if(this.state.role === 'guide') { 
                     document.getElementById('search-container').style.display = 'block'; 
-                    document.getElementById('video-shield').style.display = 'none'; // Guide needs to interact
+                    document.getElementById('video-shield').style.display = 'none'; // Guide interaction enabled
                     App.postOffice.clearChat(); 
-                }
-                else { 
+                } else { 
                     document.getElementById('tourist-controls').style.display = 'block'; 
                 }
             },
@@ -264,11 +265,9 @@
             init: function() {
                 const base = "https://travelfromhome.whereby.com/tfh1027277d-1eba-45a2-8f24-33bcddb684b9";
                 const common = "&embed&chat=off&info=off&people=off&precall=off&screenshare=off&pip=off";
-                
                 const url = App.state.role === 'guide' 
                     ? base + "?roomKey=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJtZWV0aW5nSWQiOiIxMjg3NDEwNTgiLCJyb29tUmVmZXJlbmNlIjp7InJvb21OYW1lIjoiL3RmaDEwMjcyNzdkLTFlYmEtNDVhMi04ZjI0LTMzYmNkZGI2ODRiOSIsIm9yZ2FuaXphdGlvbklkIjoiMzM5NDM0In0sImlzcyI6Imh0dHBzOi8vYWNjb3VudHMuc3J2LndoZXJlYnkuY29tIiwiaWF0IjoxNzc3NDE0NzUwLCJyb29tS2V5VHlwZSI6Im1lZXRpbmdIb3N0In0.HRyWcZbdEIkjtB8DhHVHmlG2cwW_eccYPTM9fkiPna4" + common + "&floatSelf=on"
                     : base + "?" + common + "&video=off&audio=off";
-                    
                 document.getElementById('wherebyFrame').src = url;
             }
         };
