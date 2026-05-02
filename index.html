@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OMNISYNC 6.5 | GUEST CAM HIDE</title>
+    <title>OMNISYNC 6.6 | GUEST CAM HIDE</title>
     
     <!-- FIREBASE & GOOGLE MAPS -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -246,9 +246,13 @@
             callFrame: null,
             init: function() {
                 const container = document.getElementById('video-container');
+                
+                // 1. Force the layout to hide self-view for tourists
                 this.callFrame = window.DailyIframe.createFrame(container, {
                     iframeStyle: { width: '100%', height: '100%', border: 'none' },
-                    showLeaveButton: false, showFullscreenButton: false,
+                    showLeaveButton: false, 
+                    showFullscreenButton: false,
+                    activeSpeakerMode: (App.state.role === 'guide'), 
                     theme: { colors: { accent: '#00d2ff', background: '#000000' } }
                 });
 
@@ -260,10 +264,19 @@
                     joinOptions.videoSource = false;
                 }
 
+                // 2. Hide local video immediately on join
                 this.callFrame.join(joinOptions).then(() => {
-                    // NEW: If user is a tourist, hide their local video feed immediately
-                    if(App.state.role === 'tourist') {
+                    if (App.state.role === 'tourist') {
                         this.callFrame.setLocalVideo(false);
+                    }
+                }).catch((err) => console.error("DAILY ERROR:", err));
+
+                // 3. Safety Check: Suppress local video if it tries to turn on for tourists
+                this.callFrame.on('participant-updated', (event) => {
+                    if (App.state.role === 'tourist' && event.participant.local) {
+                        if (event.participant.video === true) {
+                            this.callFrame.setLocalVideo(false);
+                        }
                     }
                 });
             }
