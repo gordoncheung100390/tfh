@@ -3,11 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>GROUP TELEPORT | 6.4 DAILY</title>
+    <title>OMNISYNC 6.5 | DAILY API FIX</title>
     
+    <!-- FIREBASE & GOOGLE MAPS -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs&libraries=places"></script>
+    <script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs&libraries=places"></script>
+    
+    <!-- DAILY.CO OFFICIAL API -->
+    <script crossorigin src="https://unpkg.com/@daily-co/daily-js"></script>
     
     <style>
         :root { --accent: #00d2ff; --bg: #0a0a0a; --panel: #1a1a1a; }
@@ -22,12 +26,7 @@
         #view-3d { height: 50%; background: #111; position: relative; overflow: hidden; min-height: 10%; }
         #view-2d { flex: 1; background: var(--panel); min-height: 10%; position: relative; }
 
-        #resizer { 
-            height: 12px; width: 100%; background: #222; 
-            cursor: ns-resize; display: flex; align-items: center; 
-            justify-content: center; z-index: 2000; border-top: 1px solid #333; 
-            border-bottom: 1px solid #000; touch-action: none;
-        }
+        #resizer { height: 12px; width: 100%; background: #222; cursor: ns-resize; display: flex; align-items: center; justify-content: center; z-index: 2000; border-top: 1px solid #333; border-bottom: 1px solid #000; touch-action: none; }
         #resizer::after { content: ''; width: 40px; height: 4px; background: #555; border-radius: 2px; }
 
         @media (min-width: 768px) {
@@ -37,47 +36,18 @@
             #resizer::after { width: 4px; height: 40px; }
         }
 
-        #chat-outer {
-            position: absolute; bottom: 60px; left: 10px; width: 260px; height: 220px;
-            background: rgba(0,0,0,0.6); border-radius: 10px; display: flex; flex-direction: column;
-            border: 1px solid rgba(255,255,255,0.1); z-index: 1200; backdrop-filter: blur(5px);
-        }
+        #chat-outer { position: absolute; bottom: 60px; left: 10px; width: 260px; height: 220px; background: rgba(0,0,0,0.6); border-radius: 10px; display: flex; flex-direction: column; border: 1px solid rgba(255,255,255,0.1); z-index: 1200; backdrop-filter: blur(5px); }
         #chat-messages { flex: 1; overflow-y: auto; padding: 8px; font-size: 13px; display: flex; flex-direction: column; gap: 4px; }
-        .msg { word-wrap: break-word; line-height: 1.4; }
         .msg b { color: var(--accent); }
         
         #chat-input-row { display: flex; border-top: 1px solid rgba(255,255,255,0.1); padding: 5px; gap: 5px; }
         #chat-input-row input { flex: 1; background: rgba(0,0,0,0.3); border: 1px solid #444; padding: 8px; color: white; font-size: 13px; margin: 0; border-radius: 8px; }
         #chat-send-btn { background: var(--accent); color: #000; border: none; padding: 0 12px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 11px; height: 35px; }
         
-        #presence-roster {
-            position: absolute; top: 200px; left: 10px; 
-            background: rgba(0,0,0,0.8); padding: 10px; 
-            border-radius: 8px; font-size: 11px; z-index: 1100;
-            border: 1px solid rgba(255,255,255,0.1); pointer-events: none;
-        }
+        #presence-roster { position: absolute; top: 200px; left: 10px; background: rgba(0,0,0,0.8); padding: 10px; border-radius: 8px; font-size: 11px; z-index: 1100; border: 1px solid rgba(255,255,255,0.1); pointer-events: none; }
 
-        #video-container { 
-            position: absolute; top: 10px; left: 10px; 
-            width: 280px; height: 180px; 
-            background: #000; border-radius: 12px; 
-            border: 2px solid var(--accent); 
-            overflow: hidden; z-index: 1000; 
-        }
-
-        #video-shield {
-            position: absolute; inset: 0;
-            z-index: 1002;
-            background: transparent;
-            pointer-events: none;
-        }
-        
-        /* NO SCROLL FIX: Daily fits perfectly at 100% */
-        #dailyFrame { 
-            width: 100%; height: 100%; 
-            border: none; 
-            display: block;
-        }
+        /* EMPTY CONTAINER FOR DAILY API */
+        #video-container { position: absolute; top: 10px; left: 10px; width: 280px; height: 180px; background: #000; border-radius: 12px; border: 2px solid var(--accent); overflow: hidden; z-index: 1000; }
 
         #search-container { position: absolute; top: 10px; right: 10px; width: 180px; z-index: 1001; display: none; }
         #pac-input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--accent); background: #000; color: #fff; font-size: 14px; }
@@ -90,7 +60,7 @@
 
     <div id="gatekeeper">
         <div class="gate-card">
-            <h2>OmniSync <span style="color:var(--accent)">6.4</span></h2>
+            <h2>OmniSync <span style="color:var(--accent)">6.5</span></h2>
             <input type="text" id="room-input" placeholder="Room Code">
             <input type="text" id="username-input" placeholder="Your Name">
             <div style="display:flex; gap:10px; margin: 15px 0;">
@@ -111,10 +81,10 @@
                     <button id="chat-send-btn" onclick="App.brain.sendChat()">SEND</button>
                 </div>
             </div>
-            <div id="video-container">
-                <div id="video-shield"></div> 
-                <iframe id="dailyFrame" allow="camera; microphone; fullscreen; speaker; display-capture"></iframe>
-            </div>
+            
+            <!-- DAILY JS API WILL INJECT HERE -->
+            <div id="video-container"></div>
+            
             <div id="search-container"><input id="pac-input" type="text" placeholder="Search Location..."></div>
             <div class="controls" id="tourist-controls" style="display:none;"><button id="tether-btn" onclick="App.brain.toggleTether()">Tethered</button></div>
         </div>
@@ -139,7 +109,6 @@
                 
                 if(this.state.role === 'guide') { 
                     document.getElementById('search-container').style.display = 'block'; 
-                    document.getElementById('video-shield').style.display = 'none'; 
                     App.postOffice.clearChat(); 
                 } else { 
                     document.getElementById('tourist-controls').style.display = 'block'; 
@@ -291,18 +260,46 @@
         };
 
         App.studio = {
+            callFrame: null,
             init: function() {
-                // DAILY SETUP
-                const base = "https://chinhocheung.daily.co/broadcast-test";
+                const container = document.getElementById('video-container');
                 
-                // ?emb=1 is the "magic" parameter for small screen fit
-                const params = "?emb=1&hide_header=1&hide_footer=1&show_leave_button=0&theme=dark";
+                // 1. Create the secure frame using Daily's API
+                this.callFrame = window.DailyIframe.createFrame(container, {
+                    iframeStyle: {
+                        width: '100%',
+                        height: '100%',
+                        border: 'none'
+                    },
+                    showLeaveButton: false,
+                    showFullscreenButton: false,
+                    theme: {
+                        colors: {
+                            accent: '#00d2ff',
+                            background: '#000000'
+                        }
+                    }
+                });
+
+                // 2. Define the room URL
+                const roomUrl = "https://chinhocheung.daily.co/broadcast-test";
                 
-                const url = App.state.role === 'guide' 
-                    ? base + params
-                    : base + params + "&audio=0&video=0"; // Tourists start muted
-                    
-                document.getElementById('dailyFrame').src = url;
+                const joinOptions = { url: roomUrl };
+                
+                // 3. Keep tourists muted initially
+                if (App.state.role === 'tourist') {
+                    joinOptions.audioSource = false;
+                    joinOptions.videoSource = false;
+                }
+
+                // 4. Connect
+                this.callFrame.join(joinOptions)
+                    .then(() => {
+                        console.log("SUCCESS: Daily connected perfectly!");
+                    })
+                    .catch((err) => {
+                        console.error("DAILY CONNECTION ERROR:", err);
+                    });
             }
         };
     </script>
