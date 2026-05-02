@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OMNISYNC 6.3 | PEGMAN FIX</title>
+    <title>GROUP TELEPORT | 6.4 DAILY</title>
     
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
@@ -72,11 +72,11 @@
             pointer-events: none;
         }
         
-        #wherebyFrame { 
-            width: 150%; height: 150%; 
+        /* NO SCROLL FIX: Daily fits perfectly at 100% */
+        #dailyFrame { 
+            width: 100%; height: 100%; 
             border: none; 
-            position: absolute;
-            top: -25%; left: -25%; 
+            display: block;
         }
 
         #search-container { position: absolute; top: 10px; right: 10px; width: 180px; z-index: 1001; display: none; }
@@ -90,7 +90,7 @@
 
     <div id="gatekeeper">
         <div class="gate-card">
-            <h2>OmniSync <span style="color:var(--accent)">6.3</span></h2>
+            <h2>OmniSync <span style="color:var(--accent)">6.4</span></h2>
             <input type="text" id="room-input" placeholder="Room Code">
             <input type="text" id="username-input" placeholder="Your Name">
             <div style="display:flex; gap:10px; margin: 15px 0;">
@@ -112,7 +112,8 @@
                 </div>
             </div>
             <div id="video-container">
-                <div id="video-shield"></div> <iframe id="wherebyFrame" allow="camera; microphone; fullscreen; speaker; display-capture"></iframe>
+                <div id="video-shield"></div> 
+                <iframe id="dailyFrame" allow="camera; microphone; fullscreen; speaker; display-capture"></iframe>
             </div>
             <div id="search-container"><input id="pac-input" type="text" placeholder="Search Location..."></div>
             <div class="controls" id="tourist-controls" style="display:none;"><button id="tether-btn" onclick="App.brain.toggleTether()">Tethered</button></div>
@@ -187,7 +188,6 @@
             map: null, panorama: null, markers: {},
             init: function() {
                 const center = { lat: 44.4268, lng: 26.1025 };
-                // FIX: Explicitly enable streetViewControl for Pegman visibility
                 this.map = new google.maps.Map(document.getElementById('view-2d'), { 
                     center, 
                     zoom: 17, 
@@ -223,7 +223,7 @@
                                 App.postOffice.transmit({ lat: svPos.lat(), lng: svPos.lng(), h: v.heading, p: v.pitch });
                             } else {
                                 this.map.setCenter(loc);
-                                this.map.setZoom(18); // Zoom in closer to help find blue lines
+                                this.map.setZoom(18);
                                 alert("Please enter a more specific place name e.g. a post office, post code, building name etc. OR. \n\nLook for the white PEGMAN in the bottom-right of the map and drag him onto a BLUE road after clicking OK.");
                             }
                         });
@@ -292,12 +292,17 @@
 
         App.studio = {
             init: function() {
-                const base = "https://travelfromhome.whereby.com/tfh1027277d-1eba-45a2-8f24-33bcddb684b9";
-                const common = "&embed&chat=off&info=off&people=off&precall=off&screenshare=off&pip=off";
+                // DAILY SETUP
+                const base = "https://chinhocheung.daily.co/broadcast-test";
+                
+                // ?emb=1 is the "magic" parameter for small screen fit
+                const params = "?emb=1&hide_header=1&hide_footer=1&show_leave_button=0&theme=dark";
+                
                 const url = App.state.role === 'guide' 
-                    ? base + "?roomKey=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJtZWV0aW5nSWQiOiIxMjg3NDEwNTgiLCJyb29tUmVmZXJlbmNlIjp7InJvb21OYW1lIjoiL3RmaDEwMjcyNzdkLTFlYmEtNDVhMi04ZjI0LTMzYmNkZGI2ODRiOSIsIm9yZ2FuaXphdGlvbklkIjoiMzM5NDM0In0sImlzcyI6Imh0dHBzOi8vYWNjb3VudHMuc3J2LndoZXJlYnkuY29tIiwiaWF0IjoxNzc3NDE0NzUwLCJyb29tS2V5VHlwZSI6Im1lZXRpbmdIb3N0In0.HRyWcZbdEIkjtB8DhHVHmlG2cwW_eccYPTM9fkiPna4" + common + "&floatSelf=on"
-                    : base + "?" + common + "&video=off&audio=off";
-                document.getElementById('wherebyFrame').src = url;
+                    ? base + params
+                    : base + params + "&audio=0&video=0"; // Tourists start muted
+                    
+                document.getElementById('dailyFrame').src = url;
             }
         };
     </script>
