@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OMNISYNC 6.6 | GUEST CAM HIDE</title>
+    <title>GROUP TELEPORT | OMNISYNC 6.6</title>
     
     <!-- FIREBASE & GOOGLE MAPS -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -59,7 +59,7 @@
 
     <div id="gatekeeper">
         <div class="gate-card">
-            <h2>OmniSync <span style="color:var(--accent)">6.6</span></h2>
+            <h2>Group Teleport <span style="color:var(--accent)">6.6</span></h2>
             <input type="text" id="room-input" placeholder="Room Code">
             <input type="text" id="username-input" placeholder="Your Name">
             <div style="display:flex; gap:10px; margin: 15px 0;">
@@ -246,8 +246,6 @@
             callFrame: null,
             init: function() {
                 const container = document.getElementById('video-container');
-                
-                // 1. Force the layout to hide self-view for tourists
                 this.callFrame = window.DailyIframe.createFrame(container, {
                     iframeStyle: { width: '100%', height: '100%', border: 'none' },
                     showLeaveButton: false, 
@@ -264,14 +262,12 @@
                     joinOptions.videoSource = false;
                 }
 
-                // 2. Hide local video immediately on join
                 this.callFrame.join(joinOptions).then(() => {
                     if (App.state.role === 'tourist') {
                         this.callFrame.setLocalVideo(false);
                     }
                 }).catch((err) => console.error("DAILY ERROR:", err));
 
-                // 3. Safety Check: Suppress local video if it tries to turn on for tourists
                 this.callFrame.on('participant-updated', (event) => {
                     if (App.state.role === 'tourist' && event.participant.local) {
                         if (event.participant.video === true) {
