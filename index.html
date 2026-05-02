@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>OMNISYNC 6.5 | DAILY API FIX</title>
+    <title>OMNISYNC 6.5 | GUEST CAM HIDE</title>
     
     <!-- FIREBASE & GOOGLE MAPS -->
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -46,7 +46,6 @@
         
         #presence-roster { position: absolute; top: 200px; left: 10px; background: rgba(0,0,0,0.8); padding: 10px; border-radius: 8px; font-size: 11px; z-index: 1100; border: 1px solid rgba(255,255,255,0.1); pointer-events: none; }
 
-        /* EMPTY CONTAINER FOR DAILY API */
         #video-container { position: absolute; top: 10px; left: 10px; width: 280px; height: 180px; background: #000; border-radius: 12px; border: 2px solid var(--accent); overflow: hidden; z-index: 1000; }
 
         #search-container { position: absolute; top: 10px; right: 10px; width: 180px; z-index: 1001; display: none; }
@@ -82,7 +81,6 @@
                 </div>
             </div>
             
-            <!-- DAILY JS API WILL INJECT HERE -->
             <div id="video-container"></div>
             
             <div id="search-container"><input id="pac-input" type="text" placeholder="Search Location..."></div>
@@ -158,31 +156,20 @@
             init: function() {
                 const center = { lat: 44.4268, lng: 26.1025 };
                 this.map = new google.maps.Map(document.getElementById('view-2d'), { 
-                    center, 
-                    zoom: 17, 
-                    streetViewControl: true, 
-                    zoomControl: true,
-                    panControl: true, 
-                    mapTypeControl: false,
-                    fullscreenControl: false
+                    center, zoom: 17, streetViewControl: true, zoomControl: true, panControl: true, mapTypeControl: false, fullscreenControl: false
                 });
-                
                 this.panorama = new google.maps.StreetViewPanorama(document.getElementById('view-3d'), { 
-                    position: center, 
-                    visible: true, 
-                    disableDefaultUI: true 
+                    position: center, visible: true, disableDefaultUI: true 
                 });
                 this.map.setStreetView(this.panorama);
 
                 if(App.state.role === 'guide') {
                     const search = new google.maps.places.Autocomplete(document.getElementById("pac-input"));
                     const svService = new google.maps.StreetViewService();
-
                     search.addListener("place_changed", () => {
                         const p = search.getPlace();
                         if(!p.geometry) return;
                         const loc = p.geometry.location;
-
                         svService.getPanorama({ location: loc, radius: 50 }, (data, status) => {
                             if (status === "OK") {
                                 const svPos = data.location.latLng;
@@ -190,10 +177,6 @@
                                 this.map.setCenter(svPos);
                                 const v = this.panorama.getPov();
                                 App.postOffice.transmit({ lat: svPos.lat(), lng: svPos.lng(), h: v.heading, p: v.pitch });
-                            } else {
-                                this.map.setCenter(loc);
-                                this.map.setZoom(18);
-                                alert("Please enter a more specific place name e.g. a post office, post code, building name etc. OR. \n\nLook for the white PEGMAN in the bottom-right of the map and drag him onto a BLUE road after clicking OK.");
                             }
                         });
                     });
@@ -263,43 +246,26 @@
             callFrame: null,
             init: function() {
                 const container = document.getElementById('video-container');
-                
-                // 1. Create the secure frame using Daily's API
                 this.callFrame = window.DailyIframe.createFrame(container, {
-                    iframeStyle: {
-                        width: '100%',
-                        height: '100%',
-                        border: 'none'
-                    },
-                    showLeaveButton: false,
-                    showFullscreenButton: false,
-                    theme: {
-                        colors: {
-                            accent: '#00d2ff',
-                            background: '#000000'
-                        }
-                    }
+                    iframeStyle: { width: '100%', height: '100%', border: 'none' },
+                    showLeaveButton: false, showFullscreenButton: false,
+                    theme: { colors: { accent: '#00d2ff', background: '#000000' } }
                 });
 
-                // 2. Define the room URL
                 const roomUrl = "https://chinhocheung.daily.co/broadcast-test";
+                const joinOptions = { url: roomUrl, userName: App.state.name };
                 
-                const joinOptions = { url: roomUrl };
-                
-                // 3. Keep tourists muted initially
                 if (App.state.role === 'tourist') {
                     joinOptions.audioSource = false;
                     joinOptions.videoSource = false;
                 }
 
-                // 4. Connect
-                this.callFrame.join(joinOptions)
-                    .then(() => {
-                        console.log("SUCCESS: Daily connected perfectly!");
-                    })
-                    .catch((err) => {
-                        console.error("DAILY CONNECTION ERROR:", err);
-                    });
+                this.callFrame.join(joinOptions).then(() => {
+                    // NEW: If user is a tourist, hide their local video feed immediately
+                    if(App.state.role === 'tourist') {
+                        this.callFrame.setLocalVideo(false);
+                    }
+                });
             }
         };
     </script>
