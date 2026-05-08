@@ -34,9 +34,15 @@
             backdrop-filter: blur(10px);
         }
 
-        .logo { font-size: 1.5rem; font-weight: 800; letter-spacing: -1px; }
-        .logo span { color: var(--accent); }
-        .nav-links a { color: #888; text-decoration: none; margin-left: 30px; font-size: 0.9rem; transition: 0.3s; }
+        .logo { display: block; }
+        
+        .nav-links a { 
+            color: #888; 
+            text-decoration: none; 
+            margin-left: 30px; 
+            font-size: 0.9rem; 
+            transition: 0.3s; 
+        }
         .nav-links a:hover { color: #fff; }
 
         /* Hero Section */
@@ -62,6 +68,7 @@
             border-radius: 5px;
             font-weight: 600;
             transition: 0.3s;
+            display: inline-block;
         }
         .btn:hover { background: #fff; color: #000; }
 
@@ -83,10 +90,12 @@
             transition: 0.4s;
             position: relative;
             overflow: hidden;
+            display: flex;
+            flex-direction: column;
         }
         .card:hover { border-color: var(--accent); transform: translateY(-10px); }
         .card h3 { font-size: 1.8rem; margin-bottom: 15px; }
-        .card p { color: #aaa; margin-bottom: 30px; }
+        .card p { color: #aaa; margin-bottom: 25px; flex-grow: 1; }
         
         .tag {
             font-size: 0.7rem;
@@ -97,6 +106,21 @@
             display: block;
         }
 
+        /* Diagram Thumbnail Styling */
+        .diagram-preview {
+            width: 100%;
+            height: auto;
+            border-radius: 10px;
+            border: 1px solid #444;
+            margin-bottom: 20px;
+            cursor: pointer;
+            transition: 0.3s;
+        }
+        .diagram-preview:hover {
+            border-color: var(--accent);
+            filter: brightness(1.2);
+        }
+
         /* Footer */
         footer { padding: 50px 10%; border-top: 1px solid #222; text-align: center; color: #444; font-size: 0.8rem; }
     </style>
@@ -105,12 +129,13 @@
 
     <nav>
         <div class="logo">
-        <img src="logo.png" alt="NuventraTech Logo" style="height: 150px; display: block;">
-    </div> <div class="nav-links">
-        <a href="#vision">Vision</a>
-        <a href="#products">Products</a>
-        <a href="mailto:hello@nuventratech.com">Contact</a>
-    </div>
+            <img src="logo.png" alt="NuventraTech Logo" style="height: 150px;">
+        </div>
+        <div class="nav-links">
+            <a href="#vision">Vision</a>
+            <a href="#products">Products</a>
+            <a href="mailto:hello@nuventratech.com">Contact</a>
+        </div>
     </nav>
 
     <section class="hero" id="vision">
@@ -126,17 +151,23 @@
         
         <div class="grid">
             <div class="card">
-                <span class="tag">Available Now</span>
+                <span class="tag">Available Now - Alpha Version</span>
                 <h3>Group Teleport</h3>
                 <p>Collaborative virtual exploration. Sync locations, chat in real-time, and explore the world with your team from any device.</p>
                 <a href="group-teleport.html" class="btn" style="padding: 10px 20px; font-size: 0.8rem;">Launch App</a>
             </div>
 
             <div class="card">
-                <span class="tag">Coming Soon</span>
+                <span class="tag">Coming Soon - V6.0 Logic</span>
                 <h3>Nu-Mileage</h3>
+                
+                <a href="nu-mileage-workflow.png" target="_blank">
+                    <img src="nu-mileage-workflow.png" alt="Nu-Mileage Logic Diagram" class="diagram-preview">
+                </a>
+
                 <p>Automatic mileage logging with an integrated 1-click invoicing system. Perfect for freelancers and small delivery fleets.</p>
-                <a href="#" class="btn" style="padding: 10px 20px; font-size: 0.8rem; opacity: 0.5; cursor: not-allowed;">Waitlist</a>
+                
+                <a href="nu-mileage-workflow.png" target="_blank" class="btn" style="padding: 10px 20px; font-size: 0.8rem;">View Detailed Workflow</a>
             </div>
 
             <div class="card">
