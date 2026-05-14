@@ -5,12 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>GROUP TELEPORT | OMNISYNC 6.6</title>
     
-    <!-- FIREBASE & GOOGLE MAPS -->
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script async src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDU1wim3d3MYf-vvYS4JiCcnW278IaWrVs&libraries=places"></script>
     
-    <!-- DAILY.CO OFFICIAL API -->
     <script crossorigin src="https://unpkg.com/@daily-co/daily-js"></script>
     
     <style>
@@ -66,7 +62,7 @@
                 <button id="btn-t" onclick="App.setRole('tourist')" style="flex:1">TOURIST</button>
                 <button id="btn-g" onclick="App.setRole('guide')" style="flex:1; background:#222; color:#888;">GUIDE</button>
             </div>
-            <button onclick="App.launch()" style="width:100%; background: var(--accent); color:black; padding:15px; border-radius: 12px; font-weight:bold;">LAUNCH TOUR</button>
+            <button id="launch-btn" onclick="App.launch()" style="width:100%; background: var(--accent); color:black; padding:15px; border-radius: 12px; font-weight:bold;">LAUNCH TOUR</button>
         </div>
     </div>
 
@@ -90,48 +86,58 @@
         <div id="view-2d"></div>
     </div>
 
-    <script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, onValue, set, push, onDisconnect, update, remove, serverValue, onChildAdded } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getFunctions, httpsCallable } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js";
+
         const App = {
             state: { role: 'tourist', room: 'LOBBY', name: 'User', id: "U"+Date.now(), isTethered: true, isSyncing: false },
+            
             setRole: function(r) {
                 this.state.role = r;
                 document.getElementById('btn-t').style = r==='tourist' ? "background:#fff" : "background:#222;color:#888";
                 document.getElementById('btn-g').style = r==='guide' ? "background:#fff" : "background:#222;color:#888";
             },
-            launch: function() {
+
+            launch: async function() {
                 this.state.name = document.getElementById('username-input').value || "User";
                 this.state.room = document.getElementById('room-input').value.toUpperCase() || "LOBBY";
                 
-                // Initialize Firebase early to check room status
-                const config = { databaseURL: "https://virtual-tour-platform-492518-default-rtdb.firebaseio.com" };
-                if (!firebase.apps.length) firebase.initializeApp(config);
-                const db = firebase.database();
+                const launchBtn = document.getElementById('launch-btn');
+                launchBtn.innerText = "CONNECTING...";
+                launchBtn.disabled = true;
 
-                if (this.state.role === 'guide') {
-                    // Check if someone in this specific room is already a guide
-                    db.ref("rooms/" + this.state.room + "/users").orderByChild("role").equalTo("guide").once("value", (snapshot) => {
-                        if (snapshot.exists()) {
-                            alert("A tour guide already exists in this room! Please join as a Tourist or use a different Room Code.");
-                        } else {
-                            this.proceedLaunch();
-                        }
-                    });
-                } else {
-                    this.proceedLaunch();
+                try {
+                    const config = { 
+                        databaseURL: "https://virtual-tour-platform-492518-default-rtdb.firebaseio.com",
+                        projectId: "virtual-tour-platform-492518" 
+                    };
+                    const firebaseApp = initializeApp(config);
+                    App.postOffice.db = getDatabase(firebaseApp);
+                    App.functions = getFunctions(firebaseApp);
+
+                    document.getElementById('gatekeeper').style.display = 'none';
+                    document.getElementById('app-shell').style.display = 'flex';
+
+                    App.postOffice.init(); 
+                    App.eyes.init(); 
+                    await App.studio.init(); 
+                    App.ui.initResizer();
+
+                    if(this.state.role === 'guide') { 
+                        document.getElementById('search-container').style.display = 'block'; 
+                        App.postOffice.clearChat(); 
+                    } else { 
+                        document.getElementById('tourist-controls').style.display = 'block'; 
+                    }
+                } catch (err) {
+                    alert("Launch Failed: " + err.message);
+                    launchBtn.innerText = "LAUNCH TOUR";
+                    launchBtn.disabled = false;
                 }
             },
-            proceedLaunch: function() {
-                document.getElementById('gatekeeper').style.display = 'none';
-                document.getElementById('app-shell').style.display = 'flex';
-                App.postOffice.init(); App.eyes.init(); App.studio.init(); App.ui.initResizer();
-                
-                if(this.state.role === 'guide') { 
-                    document.getElementById('search-container').style.display = 'block'; 
-                    App.postOffice.clearChat(); 
-                } else { 
-                    document.getElementById('tourist-controls').style.display = 'block'; 
-                }
-            },
+
             brain: {
                 toggleTether: function() {
                     App.state.isTethered = !App.state.isTethered;
@@ -139,17 +145,25 @@
                     btn.innerText = App.state.isTethered ? "Tethered" : "Roaming";
                     btn.className = App.state.isTethered ? "" : "active";
                     if(App.state.isTethered) {
-                        App.postOffice.db.ref("rooms/"+App.state.room+"/guide").once("value", s => { if(s.val()) App.postOffice.applyMove(s.val()); });
+                        onValue(ref(App.postOffice.db, "rooms/"+App.state.room+"/guide"), s => { 
+                            if(s.val()) App.postOffice.applyMove(s.val()); 
+                        }, {onlyOnce: true});
                     }
                 },
                 sendChat: function() {
                     const field = document.getElementById('chat-msg-field');
                     if(!field.value.trim()) return;
-                    App.postOffice.db.ref("rooms/"+App.state.room+"/chats").push({ sender: App.state.name, text: field.value, time: firebase.database.ServerValue.TIMESTAMP });
+                    push(ref(App.postOffice.db, "rooms/"+App.state.room+"/chats"), { 
+                        sender: App.state.name, 
+                        text: field.value, 
+                        time: serverValue.TIMESTAMP 
+                    });
                     field.value = "";
                 }
             }
         };
+
+        window.App = App;
 
         App.ui = {
             initResizer: function() {
@@ -206,7 +220,9 @@
                     const p = this.panorama.getPosition(), v = this.panorama.getPov();
                     if(!p || App.state.isSyncing) return;
                     this.map.setCenter(p);
-                    App.postOffice.db.ref("rooms/"+App.state.room+"/users/"+App.state.id).update({ lat: p.lat(), lng: p.lng(), name: App.state.name, role: App.state.role });
+                    update(ref(App.postOffice.db, "rooms/"+App.state.room+"/users/"+App.state.id), { 
+                        lat: p.lat(), lng: p.lng(), name: App.state.name, role: App.state.role 
+                    });
                     if(App.state.role === 'guide') App.postOffice.transmit({ lat: p.lat(), lng: p.lng(), h: v.heading, p: v.pitch });
                 };
                 this.panorama.addListener('position_changed', report);
@@ -217,22 +233,21 @@
         App.postOffice = {
             db: null,
             init: function() {
-                const config = { databaseURL: "https://virtual-tour-platform-492518-default-rtdb.firebaseio.com" };
-                if (!firebase.apps.length) firebase.initializeApp(config);
-                this.db = firebase.database();
-                this.db.ref("rooms/"+App.state.room+"/users/"+App.state.id).onDisconnect().remove();
-                this.db.ref("rooms/"+App.state.room+"/chats").limitToLast(30).on("child_added", s => {
+                onDisconnect(ref(this.db, "rooms/"+App.state.room+"/users/"+App.state.id)).remove();
+                onChildAdded(ref(this.db, "rooms/"+App.state.room+"/chats"), s => {
                     const m = s.val(), box = document.getElementById('chat-messages');
                     box.innerHTML += `<div class="msg"><b>${m.sender}:</b> ${m.text}</div>`;
                     box.scrollTop = box.scrollHeight;
                 });
                 if(App.state.role === 'tourist') {
-                    this.db.ref("rooms/"+App.state.room+"/guide").on("value", s => { if(s.val() && App.state.isTethered) this.applyMove(s.val()); });
+                    onValue(ref(this.db, "rooms/"+App.state.room+"/guide"), s => { 
+                        if(s.val() && App.state.isTethered) this.applyMove(s.val()); 
+                    });
                 }
-                this.db.ref("rooms/"+App.state.room+"/users").on("value", s => this.renderUsers(s.val() || {}));
+                onValue(ref(this.db, "rooms/"+App.state.room+"/users"), s => this.renderUsers(s.val() || {}));
             },
-            clearChat: function() { this.db.ref("rooms/"+App.state.room+"/chats").remove(); },
-            transmit: function(d) { this.db.ref("rooms/"+App.state.room+"/guide").set(d); },
+            clearChat: function() { remove(ref(this.db, "rooms/"+App.state.room+"/chats")); },
+            transmit: function(d) { set(ref(this.db, "rooms/"+App.state.room+"/guide"), d); },
             applyMove: function(d) {
                 App.state.isSyncing = true;
                 const loc = {lat: d.lat, lng: d.lng};
@@ -251,8 +266,8 @@
                     if(!App.eyes.markers[uid]) {
                         App.eyes.markers[uid] = new google.maps.Marker({
                             map: App.eyes.map,
-                            label: { text: u.name, color: "black", fontSize: "16px", fontWeight: "bold" },
-                            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 10, fillColor: u.role === 'guide' ? "#ff3333" : "#00d2ff", fillOpacity: 1, strokeWeight: 2, strokeColor: "#fff", labelOrigin: new google.maps.Point(0, -2) }
+                            label: { text: u.name, color: "black", fontSize: "14px", fontWeight: "bold" },
+                            icon: { path: google.maps.SymbolPath.CIRCLE, scale: 8, fillColor: u.role === 'guide' ? "#ff3333" : "#00d2ff", fillOpacity: 1, strokeWeight: 2, strokeColor: "#fff", labelOrigin: new google.maps.Point(0, -2) }
                         });
                     }
                     App.eyes.markers[uid].setPosition({lat: u.lat, lng: u.lng});
@@ -264,37 +279,26 @@
 
         App.studio = {
             callFrame: null,
-            init: function() {
+            init: async function() {
                 const container = document.getElementById('video-container');
                 this.callFrame = window.DailyIframe.createFrame(container, {
                     iframeStyle: { width: '100%', height: '100%', border: 'none' },
-                    showLeaveButton: false, 
-                    showFullscreenButton: false,
-                    activeSpeakerMode: (App.state.role === 'guide'), 
+                    showLeaveButton: false, showFullscreenButton: false,
                     theme: { colors: { accent: '#00d2ff', background: '#000000' } }
                 });
 
-                const roomUrl = "https://chinhocheung.daily.co/broadcast-test";
+                const createDailyRoom = httpsCallable(App.functions, 'createDailyRoom');
+                const result = await createDailyRoom({ roomName: App.state.room });
+                const roomUrl = result.data.url;
+
                 const joinOptions = { url: roomUrl, userName: App.state.name };
-                
                 if (App.state.role === 'tourist') {
                     joinOptions.audioSource = false;
                     joinOptions.videoSource = false;
                 }
 
-                this.callFrame.join(joinOptions).then(() => {
-                    if (App.state.role === 'tourist') {
-                        this.callFrame.setLocalVideo(false);
-                    }
-                }).catch((err) => console.error("DAILY ERROR:", err));
-
-                this.callFrame.on('participant-updated', (event) => {
-                    if (App.state.role === 'tourist' && event.participant.local) {
-                        if (event.participant.video === true) {
-                            this.callFrame.setLocalVideo(false);
-                        }
-                    }
-                });
+                await this.callFrame.join(joinOptions);
+                if (App.state.role === 'tourist') this.callFrame.setLocalVideo(false);
             }
         };
     </script>
