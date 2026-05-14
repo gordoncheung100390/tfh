@@ -56,8 +56,7 @@
         #video-container { position: absolute; top: 10px; left: 10px; width: 280px; height: 180px; background: #000; border-radius: 12px; border: 2px solid var(--accent); overflow: hidden; z-index: 1000; }
 
         /* SEARCH & BUTTONS */
-        #search-container { position: absolute; top: 10px; right: 10px; width: 180px; z-index: 1001; display: none; }
-        #pac-input { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid var(--accent); background: #000; color: #fff; font-size: 14px; }
+        #search-container { position: absolute; top: 10px; right: 10px; width: 220px; z-index: 1001; display: none; }
         .controls { position: absolute; bottom: 15px; right: 15px; z-index: 1000; }
         button { background: #fff; color: #000; border: none; padding: 10px 18px; border-radius: 20px; font-weight: bold; cursor: pointer; font-size: 11px; }
         button.active { background: var(--accent); }
@@ -95,11 +94,7 @@
             
             <div id="video-container"></div>
             
-            <div id="search-container">
-                <input id="pac-input" type="text" placeholder="Search Location...">
-            </div>
-
-            <div class="controls" id="tourist-controls" style="display:none;">
+            <div id="search-container"></div> <div class="controls" id="tourist-controls" style="display:none;">
                 <button id="tether-btn" onclick="App.brain.toggleTether()">Tethered</button>
             </div>
         </div>
@@ -123,14 +118,12 @@
                 isSyncing: false 
             },
             
-            // FUNCTION: Role Switching
             setRole: function(r) {
                 this.state.role = r;
                 document.getElementById('btn-t').style = r==='tourist' ? "background:#fff" : "background:#222;color:#888";
                 document.getElementById('btn-g').style = r==='guide' ? "background:#fff" : "background:#222;color:#888";
             },
 
-            // FUNCTION: Launch Engine
             launch: async function() {
                 this.state.name = document.getElementById('username-input').value || "User";
                 this.state.room = document.getElementById('room-input').value.toUpperCase() || "LOBBY";
@@ -151,7 +144,6 @@
                     document.getElementById('gatekeeper').style.display = 'none';
                     document.getElementById('app-shell').style.display = 'flex';
 
-                    // Start all sub-systems
                     App.postOffice.init(); 
                     await App.eyes.init(); 
                     await App.studio.init(); 
@@ -165,20 +157,18 @@
                     }
                 } catch (err) {
                     console.error("Launch Error:", err);
-                    alert("Launch Failed: See console.");
+                    alert("Launch Failed: Check console.");
                     launchBtn.innerText = "LAUNCH TOUR";
                     launchBtn.disabled = false;
                 }
             },
 
-            // FUNCTION: Tethering & Chat Logic
             brain: {
                 toggleTether: function() {
                     App.state.isTethered = !App.state.isTethered;
                     const btn = document.getElementById('tether-btn');
                     btn.innerText = App.state.isTethered ? "Tethered" : "Roaming";
                     btn.className = App.state.isTethered ? "" : "active";
-                    
                     if(App.state.isTethered) {
                         onValue(ref(App.postOffice.db, "rooms/"+App.state.room+"/guide"), s => { 
                             if(s.val()) App.postOffice.applyMove(s.val()); 
@@ -200,7 +190,6 @@
 
         window.App = App;
 
-        // UI: Resizing Divider Logic
         App.ui = {
             initResizer: function() {
                 const resizer = document.getElementById('resizer'), v3d = document.getElementById('view-3d');
@@ -225,13 +214,12 @@
             }
         };
 
-        // EYES: Google Maps & Street View Logic
         App.eyes = {
             map: null, panorama: null, markers: {},
             init: async function() {
                 const { Map } = await google.maps.importLibrary("maps");
                 const { StreetViewPanorama, StreetViewService } = await google.maps.importLibrary("streetView");
-                const { Autocomplete } = await google.maps.importLibrary("places");
+                const { PlaceAutocompleteElement } = await google.maps.importLibrary("places");
 
                 const center = { lat: 44.4268, lng: 26.1025 };
                 this.map = new Map(document.getElementById('view-2d'), { center, zoom: 17 });
@@ -239,12 +227,13 @@
                 this.map.setStreetView(this.panorama);
 
                 if(App.state.role === 'guide') {
-                    const search = new Autocomplete(document.getElementById("pac-input"));
+                    const searchElement = new PlaceAutocompleteElement();
+                    document.getElementById("search-container").appendChild(searchElement);
                     const svService = new StreetViewService();
-                    search.addListener("place_changed", () => {
-                        const p = search.getPlace();
-                        if(!p.geometry) return;
-                        svService.getPanorama({ location: p.geometry.location, radius: 50 }, (data, status) => {
+
+                    searchElement.addEventListener("gmp-placeselect", async ({place}) => {
+                        if (!place.location) return;
+                        svService.getPanorama({ location: place.location, radius: 50 }, (data, status) => {
                             if (status === "OK") {
                                 const svPos = data.location.latLng;
                                 this.panorama.setPosition(svPos);
@@ -267,79 +256,8 @@
             }
         };
 
-        // POSTOFFICE: Data Syncing Logic
         App.postOffice = {
             db: null,
             init: function() {
                 onDisconnect(ref(this.db, "rooms/"+App.state.room+"/users/"+App.state.id)).remove();
-                
                 onChildAdded(ref(this.db, "rooms/"+App.state.room+"/chats"), s => {
-                    const m = s.val(), box = document.getElementById('chat-messages');
-                    box.innerHTML += `<div class="msg"><b>${m.sender}:</b> ${m.text}</div>`;
-                    box.scrollTop = box.scrollHeight;
-                });
-
-                if(App.state.role === 'tourist') {
-                    onValue(ref(this.db, "rooms/"+App.state.room+"/guide"), s => { 
-                        if(s.val() && App.state.isTethered) this.applyMove(s.val()); 
-                    });
-                }
-                
-                onValue(ref(this.db, "rooms/"+App.state.room+"/users"), s => this.renderUsers(s.val() || {}));
-            },
-            clearChat: function() { remove(ref(this.db, "rooms/"+App.state.room+"/chats")); },
-            transmit: function(d) { set(ref(this.db, "rooms/"+App.state.room+"/guide"), d); },
-            applyMove: function(d) {
-                App.state.isSyncing = true;
-                this.panorama.setPosition({lat: d.lat, lng: d.lng});
-                this.panorama.setPov({heading: d.h, pitch: d.p});
-                setTimeout(() => App.state.isSyncing = false, 300);
-            },
-            renderUsers: function(users) {
-                const list = document.getElementById('user-list-render');
-                let html = "";
-                Object.keys(users).forEach(uid => {
-                    const u = users[uid];
-                    html += `<div>${u.role==='guide'?'👑':'👤'} ${u.name}</div>`;
-                    if(uid === App.state.id || !u.lat) return;
-                    if(!App.eyes.markers[uid]) {
-                        App.eyes.markers[uid] = new google.maps.Marker({ map: App.eyes.map, label: u.name });
-                    }
-                    App.eyes.markers[uid].setPosition({lat: u.lat, lng: u.lng});
-                });
-                list.innerHTML = html;
-            }
-        };
-
-        // STUDIO: Video Call Initialization
-        App.studio = {
-            callFrame: null,
-            init: async function() {
-                const container = document.getElementById('video-container');
-                this.callFrame = window.DailyIframe.createFrame(container, {
-                    iframeStyle: { width: '100%', height: '100%', border: 'none' },
-                    showLeaveButton: false, showFullscreenButton: false,
-                    theme: { colors: { accent: '#00d2ff', background: '#000000' } }
-                });
-
-                const createDailyRoom = httpsCallable(App.functions, 'createDailyRoom');
-                const result = await createDailyRoom({ roomName: App.state.room });
-                
-                if(result.data.error) { 
-                    console.error("Room creation error:", result.data.error); 
-                    return; 
-                }
-
-                const joinOptions = { url: result.data.url, userName: App.state.name };
-                if (App.state.role === 'tourist') {
-                    joinOptions.audioSource = false;
-                    joinOptions.videoSource = false;
-                }
-
-                await this.callFrame.join(joinOptions);
-                if (App.state.role === 'tourist') this.callFrame.setLocalVideo(false);
-            }
-        };
-    </script>
-</body>
-</html>
